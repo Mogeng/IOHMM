@@ -8,7 +8,7 @@ import family
 from scipy.sparse import linalg as sp_linalg
 from sklearn import linear_model
 from sklearn.preprocessing import LabelBinarizer
-from optimize import newton_cg
+from sklearn.utils.optimize import newton_cg
 from scipy import optimize
 from scipy.misc import logsumexp
 import statsmodels.regression.linear_model as lim

@@ -7,8 +7,8 @@ The one parameter exponential family distributions used by GLM.
 
 import numpy as np
 from scipy import special
-import links as L
-import varfuncs as V
+import statsmodels.genmod.families.links as L
+import statsmodels.genmod.families.varfuncs as V
 
 FLOAT_EPS = np.finfo(float).eps
 

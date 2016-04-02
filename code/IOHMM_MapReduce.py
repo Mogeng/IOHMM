@@ -188,12 +188,7 @@ if __name__ == "__main__":
     sc = SparkContext(appName="PythonIO-HMM", pyFiles=[
         'auxiliary/HMM.py',
         'auxiliary/SupervisedModels.py',
-        'auxiliary/family.py',
-        'auxiliary/links.py',
-        'auxiliary/optimize.py',
-        'auxiliary/extmath.py',
-        'auxiliary/sag.py',
-        'auxiliary/varfuncs.py'])
+        'auxiliary/family.py'])
 
 
     speed = pd.read_csv('data/speed.csv')
