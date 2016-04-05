@@ -41,7 +41,7 @@ class BaseModel(object):
     BaseModel does nothing, but lays out the methods expected of any subclass.
     """
 
-    def __init__(self, fam, solver, fit_intercept = True, penalty = None, reg = 0, l1_ratio = 0, tol = 1e-4, max_iter = 100):
+    def __init__(self, fam, solver, fit_intercept = True, est_sd = False, penalty = None, reg = 0, l1_ratio = 0, tol = 1e-4, max_iter = 100):
         """
         Constructor
         Parameters
@@ -63,6 +63,7 @@ class BaseModel(object):
         self.solver = solver
         self.tol = tol
         self.max_iter = max_iter
+        self.est_sd = est_sd
 
         
 
@@ -125,8 +126,8 @@ class GLM(BaseModel):
     """
     A Generalized linear model for data with input and output.
     """
-    def __init__(self, fam, solver = 'pinv', fit_intercept = True, penalty = None, reg = 0, l1_ratio = 0, tol = 1e-4, max_iter = 100):
-        super(GLM, self).__init__(fam = fam, solver = solver, fit_intercept = fit_intercept, penalty = penalty, 
+    def __init__(self, fam, solver = 'pinv', fit_intercept = True, est_sd = False, penalty = None, reg = 0, l1_ratio = 0, tol = 1e-4, max_iter = 100):
+        super(GLM, self).__init__(fam = fam, solver = solver, fit_intercept = fit_intercept, est_sd = est_sd, penalty = penalty, 
                                  reg = reg, l1_ratio = l1_ratio, tol = tol, max_iter = max_iter)
     def fit(self, X, Y, sample_weight = None):
         """
@@ -200,7 +201,8 @@ class GLM(BaseModel):
         self.converged = converged
         self.coef = wls_results.params
         self.dispersion = self.estimate_dispersion(X, Y, mu, sample_weight)
-        self.sd = self.estimate_sd(X, Y, mu, sample_weight, weights)
+        if self.est_sd:
+            self.sd = self.estimate_sd(X, Y, mu, sample_weight, weights)
         self.ll = self.estimate_loglikelihood(Y, mu, sample_weight)
 
     def predict(self, X):
@@ -275,8 +277,8 @@ class LM(BaseModel):
     """
     A Generalized linear model for data with input and output.
     """
-    def __init__(self, solver = 'svd', fit_intercept = True, penalty = None, reg = 0, l1_ratio = 0, tol = 1e-4, max_iter = 100):
-        super(LM, self).__init__(fam = 'LM', solver = solver, fit_intercept = fit_intercept, penalty = penalty, 
+    def __init__(self, solver = 'svd', fit_intercept = True, penalty = None, est_sd = False, reg = 0, l1_ratio = 0, tol = 1e-4, max_iter = 100):
+        super(LM, self).__init__(fam = 'LM', solver = solver, fit_intercept = fit_intercept, est_sd = est_sd, penalty = penalty, 
                                  reg = reg, l1_ratio = l1_ratio, tol = tol, max_iter = max_iter)
         
     def fit(self, X, Y, sample_weight = None):
@@ -331,7 +333,8 @@ class LM(BaseModel):
         else:
             self.converged = None
         self.dispersion = self.estimate_dispersion(X, Y, sample_weight)
-        self.sd = self.estimate_sd(X, Y, sample_weight)
+        if self.est_sd:
+            self.sd = self.estimate_sd(X, Y, sample_weight)
         self.ll = self.estimate_loglikelihood(sample_weight)
 
     def predict(self, X):
@@ -568,8 +571,8 @@ class MNLD(MNL):
     """
     A MNL for discrete data with input and output.
     """
-    def __init__(self, solver='newton-cg', fit_intercept = True, penalty = None, reg = 0, l1_ratio = 0, tol = 1e-4, max_iter = 100):
-        super(MNLD, self).__init__(fam = 'MNLD', solver = solver, fit_intercept = fit_intercept, penalty = penalty, 
+    def __init__(self, solver='newton-cg', fit_intercept = True, est_sd = False, penalty = None, reg = 0, l1_ratio = 0, tol = 1e-4, max_iter = 100):
+        super(MNLD, self).__init__(fam = 'MNLD', solver = solver, fit_intercept = fit_intercept, est_sd = est_sd, penalty = penalty, 
                                  reg = reg, l1_ratio = l1_ratio, tol = tol, max_iter = max_iter)
         
     def fit(self, X, Y, sample_weight = None):
@@ -619,7 +622,8 @@ class MNLD(MNL):
         w1 = w1.T - w1.T[:,0].reshape(-1,1)
         self.coef = w1
         self.converged = model.n_iter_ < self.max_iter
-        self.sd = self.estimate_sd(X, sample_weight)
+        if self.est_sd:
+            self.sd = self.estimate_sd(X, sample_weight)
         self.ll = self.estimate_loglikelihood(X, Y, sample_weight)
 
     
@@ -678,8 +682,8 @@ class MNLP(MNL):
     """
     A MNL with probability response for data with input and output.
     """
-    def __init__(self, solver = 'newton-cg', fit_intercept = True, penalty = None, reg = 0, l1_ratio = 0, tol = 1e-4, max_iter = 100):
-        super(MNL, self).__init__(fam = 'MNLP', solver = solver, fit_intercept = fit_intercept, penalty = penalty, 
+    def __init__(self, solver = 'newton-cg', fit_intercept = True, est_sd = False, penalty = None, reg = 0, l1_ratio = 0, tol = 1e-4, max_iter = 100):
+        super(MNL, self).__init__(fam = 'MNLP', solver = solver, fit_intercept = fit_intercept, est_sd = est_sd, penalty = penalty, 
                                  reg = reg, l1_ratio = l1_ratio, tol = tol, max_iter = max_iter)
         
     def fit(self, X, Y, sample_weight = None):
@@ -751,7 +755,8 @@ class MNLP(MNL):
         w1 = w1.T - w1.T[:,0].reshape(-1,1)
         self.coef = w1
         self.converged = n_iter_i < self.max_iter
-        self.sd = self.estimate_sd(X, sample_weight)
+        if self.est_sd:
+            self.sd = self.estimate_sd(X, sample_weight)
         self.ll = self.estimate_loglikelihood(X, Y, sample_weight)
 
  
