@@ -531,7 +531,8 @@ class MNL(BaseModel):
         
         return NotImplementedError
         
-        
+    def estimate_dispersion(self):
+        return 1   
     
     def estimate_sd(self, X, sample_weight):
         if self.penalty == None:
@@ -622,6 +623,7 @@ class MNLD(MNL):
         w1 = w1.T - w1.T[:,0].reshape(-1,1)
         self.coef = w1
         self.converged = model.n_iter_ < self.max_iter
+        self.dispersion = self.estimate_dispersion()
         if self.est_sd:
             self.sd = self.estimate_sd(X, sample_weight)
         self.ll = self.estimate_loglikelihood(X, Y, sample_weight)
@@ -755,6 +757,7 @@ class MNLP(MNL):
         w1 = w1.T - w1.T[:,0].reshape(-1,1)
         self.coef = w1
         self.converged = n_iter_i < self.max_iter
+        self.dispersion = self.estimate_dispersion()
         if self.est_sd:
             self.sd = self.estimate_sd(X, sample_weight)
         self.ll = self.estimate_loglikelihood(X, Y, sample_weight)
