@@ -1,22 +1,17 @@
-
-from __future__ import division
-from copy import deepcopy
+from __future__ import  division
 import numpy as np
+from copy import deepcopy
 from operator import add
 import pandas as pd
 from pyspark import SparkContext
 import sys
+sys.path.append('../auxiliary')
 from SupervisedModels import *
-from HMM import *
-
-
+from SemiHMM import *
 import warnings
 warnings.simplefilter("ignore")
 
-## example:  ./bin/spark-submit IOHMM_MapReduce.py
-
-
-def EStepMap(df, model_initial, model_transition, model_emissions, 
+def EStepMap(df, log_state, model_initial, model_transition, model_emissions, 
     covariates_initial, covariates_transition, covariates_emissions, 
     responses_emissions, num_states, num_emissions):
 
@@ -36,8 +31,7 @@ def EStepMap(df, model_initial, model_transition, model_emissions,
         log_Ey += np.vstack([model.log_probability(np.array(df[covariates_emissions[emis]]).astype('float64'),
                                                        np.array(df[responses_emissions[emis]])) for model in model_collection]).T
 
-    log_gamma, log_epsilon, ll = calHMM(log_prob_initial, log_prob_transition, log_Ey)
-
+    log_gamma, log_epsilon, ll = calHMM(log_prob_initial, log_prob_transition, log_Ey, log_state)
 
     return [[log_gamma, log_epsilon, ll]]
 
@@ -46,7 +40,7 @@ def EStepMap(df, model_initial, model_transition, model_emissions,
 
 ## adapted code to MapReduce
 ## will be improved if Spark MLLIB support linear models with sample weights
-class SupervisedHMMMapReduce:
+class SemiSupervisedIOHMMMapReduce:
     def __init__(self, num_states = 2, EM_tol = 1e-4, max_EM_iter = 100):
         self.num_states = num_states
         self.EM_tol = EM_tol
@@ -59,10 +53,10 @@ class SupervisedHMMMapReduce:
         self.model_emissions = [deepcopy(model_emissions) for i in range(self.num_states)]
         self.num_emissions = len(model_emissions)
     
-    def setData(self, rdd_dfs):
-    	# here the rdd is the rdd with (k, v) pairs that v is a dataframe
-        self.num_seqs = rdd_dfs.count()
-        self.dfs = rdd_dfs
+    def setData(self, rdd_dfs_states):
+        # here the rdd is the rdd with (k, (df, state)) pairs that df is a dataframe, state is a dictionary
+        self.num_seqs = rdd_dfs_states.count()
+        self.dfs_logStates = rdd_dfs_states.mapValues(lambda v: (v[0],{k: np.log(v[1][k]) for k in v[1]}))
         
     
     def setInputs(self, covariates_initial, covariates_transition, covariates_emissions):
@@ -70,17 +64,19 @@ class SupervisedHMMMapReduce:
         self.covariates_initial = covariates_initial
         self.covariates_transition = covariates_transition
         self.covariates_emissions = covariates_emissions
-        
-        self.inp_initials_all_users = self.dfs.map(lambda x: np.array(x[1][covariates_initial].iloc[0]).reshape(1,-1).astype('float64')).reduce(lambda a, b: np.vstack((a, b)))
+        # x = self.dfs_logStates.take(1)[0]
+
+        self.inp_initials_all_users = self.dfs_logStates.map(lambda (k, v): np.array(v[0][covariates_initial].iloc[0]).reshape(1,-1).astype('float64')).reduce(lambda a, b: np.vstack((a, b)))
+
         self.model_initial.coef = np.random.rand(self.inp_initials_all_users.shape[1]+self.model_initial.fit_intercept,self.num_states)
         
-        self.inp_transitions_all_users = self.dfs.map(lambda x: np.array(x[1][covariates_transition].iloc[1:]).astype('float64')).reduce(lambda a, b: np.vstack((a, b)))
+        self.inp_transitions_all_users = self.dfs_logStates.map(lambda (k, v): np.array(v[0][covariates_transition].iloc[1:]).astype('float64')).reduce(lambda a, b: np.vstack((a, b)))
         
         for st in range(self.num_states):
             self.model_transition[st].coef = np.random.rand(self.inp_transitions_all_users.shape[1]+self.model_transition[st].fit_intercept,self.num_states)
         self.inp_emissions_all_users = []
         for cov in covariates_emissions:
-            self.inp_emissions_all_users.append(self.dfs.map(lambda x: np.array(x[1][cov]).astype('float64')).reduce(lambda a, b: np.vstack((a, b))))
+            self.inp_emissions_all_users.append(self.dfs_logStates.map(lambda (k, v): np.array(v[0][cov]).astype('float64')).reduce(lambda a, b: np.vstack((a, b))))
         
         
     
@@ -89,7 +85,7 @@ class SupervisedHMMMapReduce:
         self.responses_emissions = responses_emissions
         self.out_emissions_all_users = []
         for res in responses_emissions:
-            self.out_emissions_all_users.append(self.dfs.map(lambda x: np.array(x[1][res])).reduce(lambda a, b: np.vstack((a, b))))
+            self.out_emissions_all_users.append(self.dfs_logStates.map(lambda (k, v): np.array(v[0][res])).reduce(lambda a, b: np.vstack((a, b))))
         for i in range(self.num_states):
             for j in range(self.num_emissions):
                 if isinstance(self.model_emissions[i][j], GLM):
@@ -114,6 +110,19 @@ class SupervisedHMMMapReduce:
                     self.model_emissions[i][j].coef = np.zeros((self.inp_emissions_all_users[j].shape[1]+self.model_emissions[i][j].fit_intercept,len(responses_emissions[j])))
                     self.model_emissions[i][j].coef = np.random.rand(self.inp_emissions_all_users[j].shape[1]+self.model_emissions[i][j].fit_intercept,len(responses_emissions[j]))
 
+    
+    def setParams(self, model_initial_coef, model_transition_coef, model_emissions_coef, model_emissions_dispersion):
+        self.model_initial.coef = model_initial_coef
+        for st in range(self.num_states):
+            self.model_transition[st].coef = model_transition_coef[st]
+        for i in range(self.num_states):
+            for j in range(self.num_emissions):
+                self.model_emissions[i][j].coef = model_emissions_coef[i][j]
+                try:
+                    self.model_emissions[i][j].dispersion = model_emissions_dispersion[i][j]
+                except:
+                    pass
+
 
     def EStep(self):        
 
@@ -128,16 +137,20 @@ class SupervisedHMMMapReduce:
         num_emissions = self.num_emissions
 
 
-        rdd_E = self.dfs.mapValues(lambda v: EStepMap(v, model_initial, model_transition, model_emissions, 
+        rdd_E = self.dfs_logStates.mapValues(lambda v: EStepMap(v[0],v[1], model_initial, model_transition, model_emissions, 
             covariates_initial, covariates_transition, covariates_emissions, 
             responses_emissions, num_states, num_emissions))
-
         posteriors = rdd_E.map(lambda x: x[1]).reduce(add)
+
+        # rdd_E = self.dfs.map(lambda (k, v): EStepMap(v, model_initial, model_transition, model_emissions, 
+        #     covariates_initial, covariates_transition, covariates_emissions, 
+        #     responses_emissions, num_states, num_emissions))
+
+        # posteriors = rdd_E.collect()
 
         self.log_gammas= [x[0] for x in posteriors]
         self.log_epsilons= [x[1] for x in posteriors]
         self.lls = [x[2] for x in posteriors]
-        
         self.ll = sum(self.lls)
 
         
@@ -156,6 +169,8 @@ class SupervisedHMMMapReduce:
             self.model_transition[st].fit(X, Y)
         
         # optimize emission models
+        # print self.log_gammas
+        # print np.exp(self.log_gammas)
         for emis in range(self.num_emissions):
             X = self.inp_emissions_all_users[emis]
             Y = self.out_emissions_all_users[emis]
@@ -178,26 +193,34 @@ class SupervisedHMMMapReduce:
 
         self.converged = it < self.max_EM_iter
 
-
-
 if __name__ == "__main__":
     if len(sys.argv) != 1:
-        print >> sys.stderr, "Usage: IO-HMM <file>"
+        print >> sys.stderr, "Usage: SemiSupervised_IOHMM_MapReduce<file>"
         exit(-1)
 
-    sc = SparkContext(appName="PythonIO-HMM", pyFiles=[
-        'auxiliary/HMM.py',
-        'auxiliary/SupervisedModels.py',
-        'auxiliary/family.py'])
+    sc = SparkContext(appName="Python_SemiSupervised_IOHMM_MapReduce", pyFiles=[
+        '../auxiliary/SemiHMM.py',
+        '../auxiliary/SupervisedModels.py',
+        '../auxiliary/family.py'])
 
 
-    speed = pd.read_csv('data/speed.csv')
-    indexes = ((1,1), (2,1))
+    speed = pd.read_csv('../data/speed.csv')
+    states = {}
+    corr = np.array(speed['corr'])
+    for i in range(int(len(corr)/2)):
+        state = np.zeros((2,))
+        if corr[i] == 'cor':
+            states[i] = np.array([0,1])
+        else:
+            states[i] = np.array([1,0])
+
+    indexes = [(1,1), (2,1)]
     RDD = sc.parallelize(indexes)
-    dfs = RDD.mapValues(lambda v: speed)
+    dfs_states = RDD.mapValues(lambda v: [speed, states])
     
-    SHMM = SupervisedHMMMapReduce(num_states=2, max_EM_iter=100, EM_tol=1e-4)
-    SHMM.setData(dfs)
+
+    SHMM = SemiSupervisedIOHMMMapReduce(num_states=2, max_EM_iter=100, EM_tol=1e-4)
+    SHMM.setData(dfs_states)
     SHMM.setModels(model_emissions = [LM()], model_transition=MNLP(solver='lbfgs'))
     SHMM.setInputs(covariates_initial = [], covariates_transition = [], covariates_emissions = [[]])
     SHMM.setOutputs([['rt']])
@@ -205,15 +228,3 @@ if __name__ == "__main__":
     print 'done'
 
 
-
-
-
-
-
-
-
-
-
-
-
-    
