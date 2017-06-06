@@ -57,7 +57,11 @@ class SemiSupervisedIOHMMMapReduce:
         # here the rdd is the rdd with (k, (df, state)) pairs that df is a dataframe, state is a dictionary
         self.num_seqs = rdd_dfs_states.count()
         self.dfs_logStates = rdd_dfs_states.mapValues(lambda v: (v[0],{k: np.log(v[1][k]) for k in v[1]}))
-        
+        dfs_logStates = self.dfs_logStates.collect()
+        self.log_gammas = [np.log(np.zeros((df.shape[0], self.num_states))) for df, log_state in dfs_logStates]
+        for i, (df, log_state) in enumerate(dfs_logStates):
+            for k in log_state:
+                self.log_gammas[i][k,:] = log_state[k]
     
     def setInputs(self, covariates_initial, covariates_transition, covariates_emissions):
 
@@ -87,28 +91,35 @@ class SemiSupervisedIOHMMMapReduce:
         for res in responses_emissions:
             self.out_emissions_all_users.append(self.dfs_logStates.map(lambda (k, v): np.array(v[0][res])).reduce(lambda a, b: np.vstack((a, b))))
         for i in range(self.num_states):
-            for j in range(self.num_emissions):
-                if isinstance(self.model_emissions[i][j], GLM):
-                    self.model_emissions[i][j].coef = np.zeros((self.inp_emissions_all_users[j].shape[1]+self.model_emissions[i][j].fit_intercept,))
-                    self.model_emissions[i][j].coef = np.random.rand(self.inp_emissions_all_users[j].shape[1]+self.model_emissions[i][j].fit_intercept,)
-                    self.model_emissions[i][j].dispersion = 1
-                if isinstance(self.model_emissions[i][j], LM):
-                    if len(responses_emissions[j]) == 1:
+            sample_weight = np.exp(np.hstack([lg[:,i] for lg in self.log_gammas]))
+            if sample_weight.sum() > 0:
+                for j in range(self.num_emissions):
+                    X = self.inp_emissions_all_users[j]
+                    Y = self.out_emissions_all_users[j]
+                    self.model_emissions[i][j].fit(X, Y, sample_weight = sample_weight)
+            else:
+                for j in range(self.num_emissions):
+                    if isinstance(self.model_emissions[i][j], GLM):
                         self.model_emissions[i][j].coef = np.zeros((self.inp_emissions_all_users[j].shape[1]+self.model_emissions[i][j].fit_intercept,))
                         self.model_emissions[i][j].coef = np.random.rand(self.inp_emissions_all_users[j].shape[1]+self.model_emissions[i][j].fit_intercept,)
                         self.model_emissions[i][j].dispersion = 1
-                    else:
-                        self.model_emissions[i][j].coef = np.zeros((self.inp_emissions_all_users[j].shape[1]+self.model_emissions[i][j].fit_intercept, len(responses_emissions[j])))
-                        self.model_emissions[i][j].coef = np.random.rand(self.inp_emissions_all_users[j].shape[1]+self.model_emissions[i][j].fit_intercept, len(responses_emissions[j]))
-                        self.model_emissions[i][j].dispersion = np.eye(len(responses_emissions[j]))
-                if isinstance(self.model_emissions[i][j], MNLD):
-                    self.model_emissions[i][j].coef = np.zeros((self.inp_emissions_all_users[j].shape[1]+self.model_emissions[i][j].fit_intercept,np.unique(self.out_emissions_all_users[j]).shape[0]))
-                    self.model_emissions[i][j].coef = np.random.rand(self.inp_emissions_all_users[j].shape[1]+self.model_emissions[i][j].fit_intercept,np.unique(self.out_emissions_all_users[j]).shape[0])
-                    self.model_emissions[i][j].lb = LabelBinarizer().fit(self.out_emissions_all_users[j])
-#                     self.model_emissions[i][j].n_targets = len(np.unique(self.out_emissions_all_users[j]))
-                if isinstance(self.model_emissions[i][j], MNLP):
-                    self.model_emissions[i][j].coef = np.zeros((self.inp_emissions_all_users[j].shape[1]+self.model_emissions[i][j].fit_intercept,len(responses_emissions[j])))
-                    self.model_emissions[i][j].coef = np.random.rand(self.inp_emissions_all_users[j].shape[1]+self.model_emissions[i][j].fit_intercept,len(responses_emissions[j]))
+                    if isinstance(self.model_emissions[i][j], LM):
+                        if len(responses_emissions[j]) == 1:
+                            self.model_emissions[i][j].coef = np.zeros((self.inp_emissions_all_users[j].shape[1]+self.model_emissions[i][j].fit_intercept,))
+                            self.model_emissions[i][j].coef = np.random.rand(self.inp_emissions_all_users[j].shape[1]+self.model_emissions[i][j].fit_intercept,)
+                            self.model_emissions[i][j].dispersion = 1
+                        else:
+                            self.model_emissions[i][j].coef = np.zeros((self.inp_emissions_all_users[j].shape[1]+self.model_emissions[i][j].fit_intercept, len(responses_emissions[j])))
+                            self.model_emissions[i][j].coef = np.random.rand(self.inp_emissions_all_users[j].shape[1]+self.model_emissions[i][j].fit_intercept, len(responses_emissions[j]))
+                            self.model_emissions[i][j].dispersion = np.eye(len(responses_emissions[j]))
+                    if isinstance(self.model_emissions[i][j], MNLD):
+                        self.model_emissions[i][j].coef = np.zeros((self.inp_emissions_all_users[j].shape[1]+self.model_emissions[i][j].fit_intercept,np.unique(self.out_emissions_all_users[j]).shape[0]))
+                        self.model_emissions[i][j].coef = np.random.rand(self.inp_emissions_all_users[j].shape[1]+self.model_emissions[i][j].fit_intercept,np.unique(self.out_emissions_all_users[j]).shape[0])
+                        self.model_emissions[i][j].lb = LabelBinarizer().fit(self.out_emissions_all_users[j])
+    #                     self.model_emissions[i][j].n_targets = len(np.unique(self.out_emissions_all_users[j]))
+                    if isinstance(self.model_emissions[i][j], MNLP):
+                        self.model_emissions[i][j].coef = np.zeros((self.inp_emissions_all_users[j].shape[1]+self.model_emissions[i][j].fit_intercept,len(responses_emissions[j])))
+                        self.model_emissions[i][j].coef = np.random.rand(self.inp_emissions_all_users[j].shape[1]+self.model_emissions[i][j].fit_intercept,len(responses_emissions[j]))
 
     
     def setParams(self, model_initial_coef, model_transition_coef, model_emissions_coef, model_emissions_dispersion):
