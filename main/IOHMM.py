@@ -99,35 +99,36 @@ class UnSupervisedIOHMM(object):
                     X = self.inp_emissions_all_users[j]
                     Y = self.out_emissions_all_users[j]
                     self.model_emissions[i][j].fit(X, Y, sample_weight=sample_weight)
-            for j in range(self.num_emissions):
-                if isinstance(self.model_emissions[i][j], GLM):
-                    self.model_emissions[i][j].coef = np.random.rand(
-                        len(self.covariates_emissions[j]) +
-                        self.model_emissions[i][j].fit_intercept,)
-                    self.model_emissions[i][j].dispersion = 1
-                if isinstance(self.model_emissions[i][j], LM):
-                    if len(self.responses_emissions[j]) == 1:
+            else:
+                for j in range(self.num_emissions):
+                    if isinstance(self.model_emissions[i][j], GLM):
                         self.model_emissions[i][j].coef = np.random.rand(
                             len(self.covariates_emissions[j]) +
                             self.model_emissions[i][j].fit_intercept,)
                         self.model_emissions[i][j].dispersion = 1
-                    else:
+                    if isinstance(self.model_emissions[i][j], LM):
+                        if len(self.responses_emissions[j]) == 1:
+                            self.model_emissions[i][j].coef = np.random.rand(
+                                len(self.covariates_emissions[j]) +
+                                self.model_emissions[i][j].fit_intercept,)
+                            self.model_emissions[i][j].dispersion = 1
+                        else:
+                            self.model_emissions[i][j].coef = np.random.rand(len(
+                                self.covariates_emissions[j]) +
+                                self.model_emissions[i][j].fit_intercept,
+                                len(self.responses_emissions[j]))
+                            self.model_emissions[i][j].dispersion = np.eye(
+                                len(self.responses_emissions[j]))
+                    if isinstance(self.model_emissions[i][j], MNLD):
                         self.model_emissions[i][j].coef = np.random.rand(len(
-                            self.covariates_emissions[j]) +
-                            self.model_emissions[i][j].fit_intercept,
+                            self.covariates_emissions[j]) + self.model_emissions[i][j].fit_intercept,
+                            np.unique(self.out_emissions_all_users[j]).shape[0])
+                        self.model_emissions[i][j].lb = LabelBinarizer().fit(
+                            self.out_emissions_all_users[j])
+                    if isinstance(self.model_emissions[i][j], MNLP):
+                        self.model_emissions[i][j].coef = np.random.rand(len(
+                            self.covariates_emissions[j]) + self.model_emissions[i][j].fit_intercept,
                             len(self.responses_emissions[j]))
-                        self.model_emissions[i][j].dispersion = np.eye(
-                            len(self.responses_emissions[j]))
-                if isinstance(self.model_emissions[i][j], MNLD):
-                    self.model_emissions[i][j].coef = np.random.rand(len(
-                        self.covariates_emissions[j]) + self.model_emissions[i][j].fit_intercept,
-                        np.unique(self.out_emissions_all_users[j]).shape[0])
-                    self.model_emissions[i][j].lb = LabelBinarizer().fit(
-                        self.out_emissions_all_users[j])
-                if isinstance(self.model_emissions[i][j], MNLP):
-                    self.model_emissions[i][j].coef = np.random.rand(len(
-                        self.covariates_emissions[j]) + self.model_emissions[i][j].fit_intercept,
-                        len(self.responses_emissions[j]))
         self.has_params = True
 
     def EStep(self):
