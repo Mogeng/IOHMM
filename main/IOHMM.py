@@ -55,6 +55,7 @@ class UnSupervisedIOHMM(object):
 
     def setData(self, dfs):
         self.num_seqs = len(dfs)
+        self.dfs = dfs
         self.dfs_logStates = map(lambda x: [x, {}], dfs)
         self.initIO()
 
@@ -121,13 +122,15 @@ class UnSupervisedIOHMM(object):
                                 len(self.responses_emissions[j]))
                     if isinstance(self.model_emissions[i][j], MNLD):
                         self.model_emissions[i][j].coef = np.random.rand(len(
-                            self.covariates_emissions[j]) + self.model_emissions[i][j].fit_intercept,
+                            self.covariates_emissions[j]) +
+                            self.model_emissions[i][j].fit_intercept,
                             np.unique(self.out_emissions_all_users[j]).shape[0])
                         self.model_emissions[i][j].lb = LabelBinarizer().fit(
                             self.out_emissions_all_users[j])
                     if isinstance(self.model_emissions[i][j], MNLP):
                         self.model_emissions[i][j].coef = np.random.rand(len(
-                            self.covariates_emissions[j]) + self.model_emissions[i][j].fit_intercept,
+                            self.covariates_emissions[j]) +
+                            self.model_emissions[i][j].fit_intercept,
                             len(self.responses_emissions[j]))
         self.has_params = True
 
@@ -187,6 +190,7 @@ class UnSupervisedIOHMM(object):
 class SemiSupervisedIOHMM(UnSupervisedIOHMM):
     def setData(self, dfs_states):
         self.num_seqs = len(dfs_states)
+        self.dfs = [df for df, state in dfs_states]
         self.dfs_logStates = map(lambda x: [x[0], {k: np.log(x[1][k]) for k in x[1]}], dfs_states)
         self.initIO()
 
@@ -199,6 +203,7 @@ class SupervisedIOHMM(SemiSupervisedIOHMM):
         # here the rdd is the rdd with (k, (df, state)) pairs that df is a dataframe,
         # state is a dictionary
         self.num_seqs = len(dfs_states)
+        self.dfs = [df for df, state in dfs_states]
         self.dfs_logStates = map(lambda x: [x[0], {k: np.log(x[1][k]) for k in x[1]}], dfs_states)
         self.initIOLabeled()
         # for labeled data
@@ -279,6 +284,7 @@ class SupervisedIOHMM(SemiSupervisedIOHMM):
 class UnSupervisedIOHMMMapReduce(UnSupervisedIOHMM):
     def setData(self, rdd_dfs):
         self.num_seqs = rdd_dfs.count()
+        self.dfs = rdd_dfs
         self.dfs_logStates = rdd_dfs.mapValues(lambda v: (v, {}))
         self.initIO()
 
@@ -329,6 +335,7 @@ class UnSupervisedIOHMMMapReduce(UnSupervisedIOHMM):
 class SemiSupervisedIOHMMMapReduce(UnSupervisedIOHMMMapReduce):
     def setData(self, rdd_dfs_states):
         self.num_seqs = rdd_dfs_states.count()
+        self.dfs = rdd_dfs_states.mapValues(lambda v: v[0])
         self.dfs_logStates = rdd_dfs_states.mapValues(
             lambda v: (v[0], {k: np.log(v[1][k]) for k in v[1]}))
         self.initIO()
@@ -340,6 +347,7 @@ class SupervisedIOHMMMapReduce(SemiSupervisedIOHMMMapReduce, SupervisedIOHMM):
 
     def setData(self, rdd_dfs_states):
         self.num_seqs = rdd_dfs_states.count()
+        self.dfs = rdd_dfs_states.mapValues(lambda v: v[0])
         self.dfs_logStates = rdd_dfs_states.mapValues(
             lambda v: (v[0], {k: np.log(v[1][k]) for k in v[1]}))
         self.initIOLabeled()
