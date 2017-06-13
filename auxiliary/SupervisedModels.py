@@ -582,8 +582,16 @@ class MNLD(MNL):
         self.n_samples = X.shape[0]
         self.n_features = X.shape[1]
         self.n_targets = len(np.unique(Y))
-        if self.n_targets < 2:
-            raise ValueError('n_targets < 2')
+        if self.n_targets == 1:
+            w0 = np.zeros((self.n_features, 1))
+            self.lb = LabelBinarizer().fit(Y)
+            self.coef = w0
+            self.converged = True
+            self.dispersion = self.estimate_dispersion()
+            if self.est_sd:
+                self.sd = None
+            self.ll = 1
+            return
 
         self.lb = LabelBinarizer().fit(Y)
 
@@ -680,10 +688,16 @@ class MNLP(MNL):
         self.n_samples = X.shape[0]
         self.n_features = X.shape[1]
         self.n_targets = Y.shape[1]
-        if self.n_targets < 2:
-            raise ValueError('n_targets < 2')
+        if self.n_targets == 1:
+            w0 = np.zeros((self.n_features, 1))
+            self.coef = w0
+            self.converged = True
+            self.dispersion = self.estimate_dispersion()
+            if self.est_sd:
+                self.sd = None
+            self.ll = 1
+            return
         w0 = np.zeros((self.n_targets*self.n_features, ))
-
         if self.solver == 'lbfgs':
             def func(x, *args):
                 return _multinomial_loss_grad(x, *args)[0:2]
