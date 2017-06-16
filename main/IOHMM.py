@@ -63,28 +63,27 @@ class UnSupervisedIOHMM(object):
         self.log_gammas = [LogGammaMap(df, log_state, self.num_states)
                            for df, log_state in self.dfs_logStates]
 
-        inp_initials = [np.array(df[self.covariates_initial].iloc[0]).reshape(
+        self.inp_initials = [np.array(df[self.covariates_initial].iloc[0]).reshape(
             1, -1).astype('float64') for df, log_state in self.dfs_logStates]
-        self.inp_initials_all_users = np.vstack(inp_initials)
+        self.inp_initials_all_users = np.vstack(self.inp_initials)
 
-        inp_transitions = [np.array(df[self.covariates_transition].iloc[1:]).astype(
+        self.inp_transitions = [np.array(df[self.covariates_transition].iloc[1:]).astype(
             'float64') for df, log_state in self.dfs_logStates]
-        self.inp_transitions_all_users = np.vstack(inp_transitions)
+        self.inp_transitions_all_users = np.vstack(self.inp_transitions)
 
-        inp_emissions = []
-        self.inp_emissions_all_users = []
-        for cov in self.covariates_emissions:
-            inp_emissions.append([np.array(df[cov]).astype('float64')
-                                  for df, log_state in self.dfs_logStates])
-        for covs in inp_emissions:
-            self.inp_emissions_all_users.append(np.vstack(covs))
+        self.inp_emissions = [[np.array(df[cov]).astype('float64') for
+                               cov in self.covariates_emissions]
+                              for df, log_state in self.dfs_logStates]
+        self.inp_emissions_all_users = [np.vstack([x[emis] for
+                                                   x in self.inp_emissions]) for
+                                        emis in range(self.num_emissions)]
+        self.out_emissions = [[np.array(df[res]) for
+                               res in self.responses_emissions]
+                              for df, log_state in self.dfs_logStates]
 
-        out_emissions = []
-        self.out_emissions_all_users = []
-        for res in self.responses_emissions:
-            out_emissions.append([np.array(df[res]) for df, log_state in self.dfs_logStates])
-        for ress in out_emissions:
-            self.out_emissions_all_users.append(np.vstack(ress))
+        self.out_emissions_all_users = [np.vstack([x[emis] for
+                                                   x in self.out_emissions]) for
+                                        emis in range(self.num_emissions)]
 
     def initParams(self):
         self.model_initial.coef = np.random.rand(
@@ -136,11 +135,11 @@ class UnSupervisedIOHMM(object):
 
     def EStep(self):
 
-        posteriors = [EStepMap(df, self.model_initial, self.model_transition, self.model_emissions,
-                               self.covariates_initial, self.covariates_transition,
-                               self.covariates_emissions, self.responses_emissions,
-                               self.num_states, self.num_emissions, log_state)
-                      for df, log_state in self.dfs_logStates]
+        posteriors = [EStepMap(self.inp_initials[seq], self.inp_transitions[seq],
+                               self.inp_emissions[seq], self.out_emissions[seq],
+                               self.model_initial, self.model_transition, self.model_emissions,
+                               self.num_states, self.num_emissions, self.dfs_logStates[seq][1])
+                      for seq in range(self.num_seqs)]
 
         self.log_gammas = [x[0] for x in posteriors]
         self.log_epsilons = [x[1] for x in posteriors]
@@ -173,11 +172,6 @@ class UnSupervisedIOHMM(object):
         self.EStep()
         for it in range(self.max_EM_iter):
             prev_ll = self.ll
-            self.out_initials_all_users = np.exp(
-                np.vstack([lg[0, :].reshape(1, -1) for lg in self.log_gammas]))
-            self.out_transitions_all_users = [
-                np.exp(np.vstack([eps[:, st, :] for eps in self.log_epsilons]))
-                for st in range(self.num_states)]
             self.MStep()
             self.EStep()
             print self.ll
@@ -205,6 +199,7 @@ class SupervisedIOHMM(SemiSupervisedIOHMM):
         self.num_seqs = len(dfs_states)
         self.dfs = [df for df, state in dfs_states]
         self.dfs_logStates = map(lambda x: [x[0], {k: np.log(x[1][k]) for k in x[1]}], dfs_states)
+        self.initIO()
         self.initIOLabeled()
         # for labeled data
 
@@ -230,7 +225,7 @@ class SupervisedIOHMM(SemiSupervisedIOHMM):
         inp_emissions = []
         self.inp_emissions_all_users_labeled = []
         for cov in self.covariates_emissions:
-            inp_emissions.append([inpEmissionsLabeled(df, log_state, cov, self.num_states)
+            inp_emissions.append([inpoutEmissionsLabeled(df, log_state, cov, self.num_states)
                                   for df, log_state in self.dfs_logStates])
         for covs in inp_emissions:
             self.inp_emissions_all_users_labeled.append(
@@ -239,7 +234,7 @@ class SupervisedIOHMM(SemiSupervisedIOHMM):
         out_emissions = []
         self.out_emissions_all_users_labeled = []
         for res in self.responses_emissions:
-            out_emissions.append([outEmissionsLabeled(df, log_state, res, self.num_states)
+            out_emissions.append([inpoutEmissionsLabeled(df, log_state, res, self.num_states)
                                   for df, log_state in self.dfs_logStates])
         for ress in out_emissions:
             self.out_emissions_all_users_labeled.append(
@@ -322,7 +317,7 @@ class UnSupervisedIOHMMMapReduce(UnSupervisedIOHMM):
         covariates_emissions = self.covariates_emissions
         responses_emissions = self.responses_emissions
         num_states, num_emissions = self.num_states, self.num_emissions
-        posteriors = self.dfs_logStates.map(lambda (k, v): EStepMap(
+        posteriors = self.dfs_logStates.map(lambda (k, v): EStepMapReduce(
             v[0], model_initial, model_transition, model_emissions,
             covariates_initial, covariates_transition, covariates_emissions,
             responses_emissions, num_states, num_emissions, v[1])).collect()
@@ -375,14 +370,14 @@ class SupervisedIOHMMMapReduce(SemiSupervisedIOHMMMapReduce, SupervisedIOHMM):
         self.inp_emissions_all_users_labeled = []
         for cov in self.covariates_emissions:
             self.inp_emissions_all_users_labeled.append(
-                self.dfs_logStates.map(lambda (k, v): inpEmissionsLabeled(
+                self.dfs_logStates.map(lambda (k, v): inpoutEmissionsLabeled(
                     v[0], v[1], cov, num_states)
                 ).reduce(lambda a, b: {i: np.vstack((a[i], b[i])) for i in range(num_states)}))
 
         self.out_emissions_all_users_labeled = []
         for res in self.responses_emissions:
             self.out_emissions_all_users_labeled.append(
-                self.dfs_logStates.map(lambda (k, v): outEmissionsLabeled(
+                self.dfs_logStates.map(lambda (k, v): inpoutEmissionsLabeled(
                     v[0], v[1], res, num_states)
                 ).reduce(lambda a, b: {i: np.vstack((a[i], b[i])) for i in range(num_states)}))
 
@@ -400,9 +395,9 @@ def LogGammaMap(df, log_state, num_states):
     return log_gamma
 
 
-def EStepMap(df, model_initial, model_transition, model_emissions,
-             covariates_initial, covariates_transition, covariates_emissions,
-             responses_emissions, num_states, num_emissions, log_state={}):
+def EStepMapReduce(df, model_initial, model_transition, model_emissions,
+                   covariates_initial, covariates_transition, covariates_emissions,
+                   responses_emissions, num_states, num_emissions, log_state={}):
 
     n_records = df.shape[0]
     log_prob_initial = model_initial.predict_log_probability(
@@ -419,6 +414,29 @@ def EStepMap(df, model_initial, model_transition, model_emissions,
         log_Ey += np.vstack([model.log_probability(
             np.array(df[covariates_emissions[emis]]).astype('float64'),
             np.array(df[responses_emissions[emis]])) for model in model_collection]).T
+
+    log_gamma, log_epsilon, ll = calHMM(log_prob_initial, log_prob_transition, log_Ey, log_state)
+
+    return [log_gamma, log_epsilon, ll]
+
+
+def EStepMap(inp_initials, inp_transitions, inp_emissions, out_emissions,
+             model_initial, model_transition, model_emissions,
+             num_states, num_emissions, log_state={}):
+
+    n_records = inp_transitions.shape[0] + 1
+    log_prob_initial = model_initial.predict_log_probability(inp_initials).reshape(num_states,)
+    log_prob_transition = np.zeros((n_records - 1, num_states, num_states))
+    for st in range(num_states):
+        log_prob_transition[:, st, :] = model_transition[st].predict_log_probability(
+            inp_transitions)
+    assert log_prob_transition.shape == (n_records - 1, num_states, num_states)
+    log_Ey = np.zeros((n_records, num_states))
+    for emis in range(num_emissions):
+        model_collection = [models[emis] for models in model_emissions]
+        log_Ey += np.vstack([model.log_probability(
+            np.array(inp_emissions[emis]).astype('float64'),
+            np.array(out_emissions[emis])) for model in model_collection]).T
 
     log_gamma, log_epsilon, ll = calHMM(log_prob_initial, log_prob_transition, log_Ey, log_state)
 
@@ -472,7 +490,7 @@ def outTransitionsLabeled(df, log_state, num_states):
     return out
 
 
-def inpEmissionsLabeled(df, log_state, cov, num_states):
+def inpoutEmissionsLabeled(df, log_state, cov, num_states):
     ind = {}
     inp = {}
     for i in range(num_states):
@@ -484,17 +502,3 @@ def inpEmissionsLabeled(df, log_state, cov, num_states):
         inp[i] = np.array(df.ix[ind[i], cov]).astype('float64')
 
     return inp
-
-
-def outEmissionsLabeled(df, log_state, res, num_states):
-    ind = {}
-    out = {}
-    for i in range(num_states):
-        ind[i] = []
-    for i in log_state:
-        st = int(np.argmax(log_state[i]))
-        ind[st].append(i)
-    for i in range(num_states):
-        out[i] = np.array(df.ix[ind[i], res]).astype('float64')
-
-    return out
