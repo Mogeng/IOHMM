@@ -1,21 +1,36 @@
 from __future__ import division
-import numpy as np
 from copy import deepcopy
-import sys
+import logging
+import os
 import warnings
-sys.path.append('../auxiliary')
-try:
-    from SupervisedModels import MNLP, GLM, LM, MNLD, LabelBinarizer
-    from HMM import calHMM
-except:
-    raise
-warnings.simplefilter("ignore")
 
+
+import numpy as np
+
+
+from HMM_utils import calHMM
+from linear_models import MNLP, GLM, LM, MNLD, LabelBinarizer
+
+
+warnings.simplefilter("ignore")
 
 # example:
 
 
+class LinearModelLoader(object):
+    """The mapping from data_type of a linear model
+       ('LM', 'GLM', 'MNLD', 'MNLP')
+       to the correct class.
+
+    """
+    LM = LM
+    GLM = GLM
+    MNLD = MNLD
+    MNLP = MNLP
+
+
 class UnSupervisedIOHMM(object):
+
     def __init__(self, num_states=2, EM_tol=1e-4, max_EM_iter=100):
         self.num_states = num_states
         self.EM_tol = EM_tol
@@ -27,7 +42,6 @@ class UnSupervisedIOHMM(object):
         self.model_initial = model_initial
         self.model_transition = [deepcopy(model_transition) for i in range(self.num_states)]
         self.model_emissions = [deepcopy(model_emissions) for i in range(self.num_states)]
-        self.num_emissions = len(model_emissions)
 
     def setInputs(self, covariates_initial, covariates_transition, covariates_emissions):
         self.covariates_initial = covariates_initial
@@ -38,6 +52,7 @@ class UnSupervisedIOHMM(object):
     def setOutputs(self, responses_emissions):
         # output should be a list inidicating the columns of the dataframe
         self.responses_emissions = responses_emissions
+        self.num_emissions = len(responses_emissions)
 
     def setParams(self, model_initial_coef, model_transition_coef,
                   model_emissions_coef, model_emissions_dispersion):
@@ -53,10 +68,10 @@ class UnSupervisedIOHMM(object):
                     pass
         self.has_params = True
 
-    def setData(self, dfs):
-        self.num_seqs = len(dfs)
-        self.dfs = dfs
-        self.dfs_logStates = map(lambda x: [x, {}], dfs)
+    def setData(self, df_list):
+        self.num_seqs = len(df_list)
+        self.dfs = df_list
+        self.dfs_logStates = map(lambda x: [x, {}], df_list)
         self.initIO()
 
     def initIO(self):
@@ -174,14 +189,90 @@ class UnSupervisedIOHMM(object):
             prev_ll = self.ll
             self.MStep()
             self.EStep()
-            print self.ll
+            logging.info('log likelihood of iteration {0}: {1:.4f}'.format(it, self.ll))
             if abs(self.ll - prev_ll) < self.EM_tol:
                 break
 
         self.converged = it < self.max_EM_iter
 
+    @classmethod
+    def from_config(cls, config):
+        model = cls(
+            num_states=config['properties']['num_states'],
+            EM_tol=config['properties']['EM_tol'],
+            max_EM_iter=config['properties']['max_EM_iter']
+        )
+        model.setModels(
+            model_initial=getattr(
+                LinearModelLoader, config['properties']['model_initial']['data_type'])(
+                    **config['properties']['model_initial']['properties']),
+            model_transition=getattr(
+                LinearModelLoader, config['properties']['model_transition']['data_type'])(
+                    **config['properties']['model_transition']['properties']),
+            model_emissions=[getattr(
+                LinearModelLoader, model_emission['data_type'])(**model_emission['properties'])
+                for model_emission in config['properties']['model_emissions']]
+        )
+        model.setInputs(covariates_initial=config['properties']['covariates_initial'],
+                        covariates_transition=config['properties']['covariates_transition'],
+                        covariates_emissions=config['properties']['covariates_emissions'])
+        model.setOutputs(config['properties']['responses_emissions'])
+        return model
+
+    def to_json(self, path):
+        json_dict = {
+            'data_type': self.__class__.__name__,
+            'properties': {
+                'num_states': self.num_states,
+                'EM_tol': self.EM_tol,
+                'max_EM_iter': self.max_EM_iter,
+                'covariates_initial': self.covariates_initial,
+                'covariates_transition': self.covariates_transition,
+                'covariates_emissions': self.covariates_emissions,
+                'responses_emissions': self.responses_emissions,
+                'model_initial': self.model_initial.to_json(
+                    path=os.path.join(path, 'model_initial')),
+                'model_transition': [self.model_transition[st].to_json(
+                    path=os.path.join(path, 'model_transition', 'state_{}'.format(st))) for
+                    st in range(self.num_states)],
+                'model_emissions': [[self.model_emissions[st][emis].to_json(
+                    path=os.path.join(
+                        path, 'model_emissions', 'state_{}'.format(st), 'emission_{}'.format(emis))
+                ) for emis in range(self.num_emissions)] for st in range(self.num_states)]
+
+            }
+        }
+        return json_dict
+
+    @classmethod
+    def from_json(cls, json_dict):
+        model = cls(
+            num_states=json_dict['properties']['num_states'],
+            EM_tol=json_dict['properties']['EM_tol'],
+            max_EM_iter=json_dict['properties']['max_EM_iter']
+        )
+        model.model_initial = getattr(
+            LinearModelLoader, json_dict['properties']['model_initial']['data_type']).from_json(
+            json_dict['properties']['model_initial'])
+        model.model_transition = [getattr(
+            LinearModelLoader, model_transition_json['data_type']
+        ).from_json(model_transition_json) for
+            model_transition_json in json_dict['properties']['model_transition']]
+
+        model.model_emissions = [[getattr(
+            LinearModelLoader, model_emission_json['data_type']
+        ).from_json(model_emission_json) for model_emission_json in model_emissions_json] for
+            model_emissions_json in json_dict['properties']['model_emissions']]
+        model.has_params = True
+        model.setInputs(covariates_initial=json_dict['properties']['covariates_initial'],
+                        covariates_transition=json_dict['properties']['covariates_transition'],
+                        covariates_emissions=json_dict['properties']['covariates_emissions'])
+        model.setOutputs(json_dict['properties']['responses_emissions'])
+        return model
+
 
 class SemiSupervisedIOHMM(UnSupervisedIOHMM):
+
     def setData(self, dfs_states):
         self.num_seqs = len(dfs_states)
         self.dfs = [df for df, state in dfs_states]
@@ -190,6 +281,7 @@ class SemiSupervisedIOHMM(UnSupervisedIOHMM):
 
 
 class SupervisedIOHMM(SemiSupervisedIOHMM):
+
     def __init__(self, num_states=2):
         self.num_states = num_states
 
@@ -277,6 +369,7 @@ class SupervisedIOHMM(SemiSupervisedIOHMM):
 
 
 class UnSupervisedIOHMMMapReduce(UnSupervisedIOHMM):
+
     def setData(self, rdd_dfs):
         self.num_seqs = rdd_dfs.count()
         self.dfs = rdd_dfs
@@ -328,6 +421,7 @@ class UnSupervisedIOHMMMapReduce(UnSupervisedIOHMM):
 
 
 class SemiSupervisedIOHMMMapReduce(UnSupervisedIOHMMMapReduce):
+
     def setData(self, rdd_dfs_states):
         self.num_seqs = rdd_dfs_states.count()
         self.dfs = rdd_dfs_states.mapValues(lambda v: v[0])
@@ -337,6 +431,7 @@ class SemiSupervisedIOHMMMapReduce(UnSupervisedIOHMMMapReduce):
 
 
 class SupervisedIOHMMMapReduce(SemiSupervisedIOHMMMapReduce, SupervisedIOHMM):
+
     def __init__(self, num_states=2):
         self.num_states = num_states
 

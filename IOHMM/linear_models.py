@@ -1,15 +1,22 @@
 from __future__ import division
+
+import cPickle as pickle
+import os
+import sys
+import warnings
+
+
 import numpy as np
-import family
+from scipy import optimize
+from scipy.misc import logsumexp
 from sklearn import linear_model
 from sklearn.preprocessing import LabelBinarizer
 from sklearn.utils.optimize import newton_cg
-from scipy import optimize
-from scipy.misc import logsumexp
 import statsmodels.regression.linear_model as lim
 from statsmodels.tools.sm_exceptions import PerfectSeparationError
-import sys
-import warnings
+
+
+import family
 warnings.simplefilter("ignore")
 
 
@@ -34,7 +41,9 @@ class BaseModel(object):
     """
 
     def __init__(self, fam, solver, fit_intercept=True, est_sd=False,
-                 penalty=None, reg=0, l1_ratio=0, tol=1e-4, max_iter=100):
+                 penalty=None, reg=0, l1_ratio=0, tol=1e-4, max_iter=100,
+                 n_features=None, n_targets=None,
+                 coef=None, sd=None, dispersion=None, converged=None):
         """
         Constructor
         Parameters
@@ -57,6 +66,12 @@ class BaseModel(object):
         self.tol = tol
         self.max_iter = max_iter
         self.est_sd = est_sd
+        self.n_features = n_features
+        self.n_targets = n_targets
+        self.coef = coef
+        self.sd = sd
+        self.dispersion = dispersion
+        self.converged = converged
 
     def fit(self, X, Y, sample_weight=None):
         """
@@ -109,16 +124,80 @@ class BaseModel(object):
     def estimate_loglikelihood(self):
         raise NotImplementedError
 
+    def to_json(self, path):
+        json_dict = {
+            'data_type': self.__class__.__name__,
+            'properties': {
+                'fit_intercept': self.fit_intercept,
+                'penalty': self.penalty,
+                'reg': self.reg,
+                'l1_ratio': self.l1_ratio,
+                'solver': self.solver,
+                'tol': self.tol,
+                'max_iter': self.max_iter,
+                'est_sd': self.est_sd,
+                'n_features': self.n_features,
+                'n_targets': self.n_targets,
+                'coef': {
+                    'data_type': 'numpy.ndarray',
+                    'path': os.path.join(path, 'coef.npy')
+                },
+                'sd': {
+                    'data_type': 'numpy.ndarray',
+                    'path': os.path.join(path, 'sd.npy')
+                },
+                'dispersion': {
+                    'data_type': 'numpy.ndarray',
+                    'path': os.path.join(path, 'dispersion.npy')
+                },
+                'converged': self.converged
+            }
+        }
+        if not os.path.exists(os.path.dirname(json_dict['properties']['coef']['path'])):
+            os.makedirs(os.path.dirname(json_dict['properties']['coef']['path']))
+        np.save(json_dict['properties']['coef']['path'], self.coef)
+        if not os.path.exists(os.path.dirname(json_dict['properties']['sd']['path'])):
+            os.makedirs(os.path.dirname(json_dict['properties']['sd']['path']))
+        np.save(json_dict['properties']['sd']['path'], self.sd)
+        if not os.path.exists(os.path.dirname(json_dict['properties']['dispersion']['path'])):
+            os.makedirs(os.path.dirname(json_dict['properties']['dispersion']['path']))
+        np.save(json_dict['properties']['dispersion']['path'], self.dispersion)
+        return json_dict
+
+    @classmethod
+    def from_json(cls, json_dict):
+        return cls(
+            solver=json_dict['properties']['solver'],
+            fit_intercept=json_dict['properties']['fit_intercept'],
+            est_sd=json_dict['properties']['est_sd'],
+            penalty=json_dict['properties']['penalty'],
+            reg=json_dict['properties']['reg'],
+            l1_ratio=json_dict['properties']['l1_ratio'],
+            tol=json_dict['properties']['tol'],
+            max_iter=json_dict['properties']['max_iter'],
+            n_features=json_dict['properties']['n_features'],
+            n_targets=json_dict['properties']['n_targets'],
+            coef=np.load(json_dict['properties']['coef']['path']),
+            sd=np.load(json_dict['properties']['sd']['path']),
+            dispersion=np.load(json_dict['properties']['dispersion']['path']),
+            converged=json_dict['properties']['converged']
+        )
+
 
 class GLM(BaseModel):
     """
     A Generalized linear model for data with input and output.
     """
+
     def __init__(self, fam, solver='pinv', fit_intercept=True, est_sd=False, penalty=None,
-                 reg=0, l1_ratio=0, tol=1e-4, max_iter=100):
+                 reg=0, l1_ratio=0, tol=1e-4, max_iter=100,
+                 n_features=None, n_targets=None,
+                 coef=None, sd=None, dispersion=None, converged=None):
         super(GLM, self).__init__(fam=fam, solver=solver, fit_intercept=fit_intercept,
                                   est_sd=est_sd, penalty=penalty, reg=reg, l1_ratio=l1_ratio,
-                                  tol=tol, max_iter=max_iter)
+                                  tol=tol, max_iter=max_iter,
+                                  n_features=n_features, n_targets=n_targets,
+                                  coef=coef, sd=sd, dispersion=dispersion, converged=converged)
 
     def fit(self, X, Y, sample_weight=None):
         """
@@ -161,7 +240,7 @@ class GLM(BaseModel):
 
         for iteration in range(self.max_iter):
             weights = sample_weight * self.fam.weights(mu)
-            wlsendog = lin_pred + self.fam.link.deriv(mu) * (Y-mu)
+            wlsendog = lin_pred + self.fam.link.deriv(mu) * (Y - mu)
             if self.penalty is None:
                 wls_results = lim.WLS(wlsendog, X, weights).fit(method=self.solver)
 
@@ -250,16 +329,88 @@ class GLM(BaseModel):
         else:
             return self.fam.loglike_weighted(Y, mu, w, scale=self.dispersion)
 
+    def to_json(self, path):
+        json_dict = {
+            'data_type': 'GLM',
+            'properties': {
+                'fit_intercept': self.fit_intercept,
+                'penalty': self.penalty,
+                'reg': self.reg,
+                'l1_ratio': self.l1_ratio,
+                'fam': {
+                    'data_type': self.fam.__class__.__name__,
+                    'path': os.path.join(path, 'fam.p')
+                },
+                'solver': self.solver,
+                'tol': self.tol,
+                'max_iter': self.max_iter,
+                'est_sd': self.est_sd,
+                'n_features': self.n_features,
+                'n_targets': self.n_targets,
+                'coef': {
+                    'data_type': 'numpy.ndarray',
+                    'path': os.path.join(path, 'coef.npy')
+                },
+                'sd': {
+                    'data_type': 'numpy.ndarray',
+                    'path': os.path.join(path, 'sd.npy')
+                },
+                'dispersion': {
+                    'data_type': 'numpy.ndarray',
+                    'path': os.path.join(path, 'dispersion.npy')
+                },
+                'converged': self.converged
+            }
+        }
+        if not os.path.exists(os.path.dirname(json_dict['properties']['fam']['path'])):
+            os.makedirs(os.path.dirname(json_dict['properties']['fam']['path']))
+        pickle.dump(self.fam, open(json_dict['properties']['fam']['path'], 'wb'))
+        if not os.path.exists(os.path.dirname(json_dict['properties']['coef']['path'])):
+            os.makedirs(os.path.dirname(json_dict['properties']['coef']['path']))
+        np.save(json_dict['properties']['coef']['path'], self.coef)
+        if not os.path.exists(os.path.dirname(json_dict['properties']['sd']['path'])):
+            os.makedirs(os.path.dirname(json_dict['properties']['sd']['path']))
+        np.save(json_dict['properties']['sd']['path'], self.sd)
+        if not os.path.exists(os.path.dirname(json_dict['properties']['dispersion']['path'])):
+            os.makedirs(os.path.dirname(json_dict['properties']['dispersion']['path']))
+        np.save(json_dict['properties']['dispersion']['path'], self.dispersion)
+        return json_dict
+
+    @classmethod
+    def from_json(cls, json_dict):
+        assert json_dict['data_type'] == 'GLM'
+        return cls(
+            fam=pickle.load(open(json_dict['properties']['fam']['path'])),
+            solver=json_dict['properties']['solver'],
+            fit_intercept=json_dict['properties']['solver'],
+            est_sd=json_dict['properties']['solver'],
+            penalty=json_dict['properties']['solver'],
+            reg=json_dict['properties']['solver'],
+            l1_ratio=json_dict['properties']['solver'],
+            tol=json_dict['properties']['solver'],
+            max_iter=json_dict['properties']['solver'],
+            n_features=json_dict['properties']['n_features'],
+            n_targets=json_dict['properties']['n_targets'],
+            coef=np.load(json_dict['properties']['coef']['path']),
+            sd=np.load(json_dict['properties']['sd']['path']),
+            dispersion=np.load(json_dict['properties']['dispersion']['path']),
+            converged=json_dict['properties']['converged'])
+
 
 class LM(BaseModel):
     """
     A Generalized linear model for data with input and output.
     """
+
     def __init__(self, solver='svd', fit_intercept=True, penalty=None, est_sd=False,
-                 reg=0, l1_ratio=0, tol=1e-4, max_iter=100):
+                 reg=0, l1_ratio=0, tol=1e-4, max_iter=100,
+                 n_features=None, n_targets=None,
+                 coef=None, sd=None, dispersion=None, converged=None):
         super(LM, self).__init__(fam='LM', solver=solver, fit_intercept=fit_intercept,
                                  est_sd=est_sd, penalty=penalty,
-                                 reg=reg, l1_ratio=l1_ratio, tol=tol, max_iter=max_iter)
+                                 reg=reg, l1_ratio=l1_ratio, tol=tol, max_iter=max_iter,
+                                 n_features=n_features, n_targets=n_targets,
+                                 coef=coef, sd=sd, dispersion=dispersion, converged=converged)
 
     def fit(self, X, Y, sample_weight=None):
         """
@@ -350,8 +501,8 @@ class LM(BaseModel):
 
         if Y.shape[1] == 1:
             if self.dispersion > 0:
-                logP = (Y * pred - pred**2/2)/self.dispersion - Y**2/(2 * self.dispersion) - \
-                    .5*np.log(2 * np.pi * self.dispersion)
+                logP = (Y * pred - pred**2 / 2) / self.dispersion - Y**2 / (2 * self.dispersion) - \
+                    .5 * np.log(2 * np.pi * self.dispersion)
                 logP = logP.reshape(-1,)
             else:
                 logP = np.zeros((Y.shape[0],))
@@ -359,23 +510,23 @@ class LM(BaseModel):
                 logP = logP.reshape(-1,)
         else:
             if np.linalg.det(self.dispersion) > 0:
-                logP = -1/2*((Y.shape[1] * np.log(2 * np.pi) +
-                             np.log(np.linalg.det(self.dispersion))) +
-                             np.diag(np.dot(np.dot(Y - pred, np.linalg.inv(self.dispersion)),
-                                                  (Y-pred).T)))
+                logP = -1 / 2 * ((Y.shape[1] * np.log(2 * np.pi) +
+                                  np.log(np.linalg.det(self.dispersion))) +
+                                 np.diag(np.dot(np.dot(Y - pred, np.linalg.inv(self.dispersion)),
+                                                (Y - pred).T)))
                 logP = logP.reshape(-1,)
             else:
                 if (np.diag(self.dispersion) > 0).all():
                     new_dispersion = np.diag(np.diag(self.dispersion))
-                    logP = -1/2*((Y.shape[1] * np.log(2 * np.pi) +
-                                 np.log(np.linalg.det(self.dispersion))) +
-                                 np.diag(np.dot(np.dot(Y-pred, np.linalg.inv(new_dispersion)),
-                                                      (Y-pred).T)))
+                    logP = -1 / 2 * ((Y.shape[1] * np.log(2 * np.pi) +
+                                      np.log(np.linalg.det(self.dispersion))) +
+                                     np.diag(np.dot(np.dot(Y - pred, np.linalg.inv(new_dispersion)),
+                                                    (Y - pred).T)))
                     logP = logP.reshape(-1,)
 
                 else:
                     logP = np.zeros((Y.shape[0],))
-                    logP[np.linalg.norm(Y-pred, axis=1) != 0] = -np.Infinity
+                    logP[np.linalg.norm(Y - pred, axis=1) != 0] = -np.Infinity
                     logP = logP.reshape(-1,)
         return logP
 
@@ -446,6 +597,7 @@ class MNL(BaseModel):
     """
     A MNL for data with input and output.
     """
+
     def fit(self, X, Y, sample_weight=None):
         """
         fit the weighted model
@@ -520,17 +672,18 @@ class MNL(BaseModel):
             # calculate hessian
             p = self.n_features
             q = self.n_targets
-            h = np.zeros((p*(q-1), p*(q-1)))
-            for e in range(q-1):
-                for f in range(q-1):
-                    h[e*p: (e+1)*p, f*p: (f+1)*p] = -np.dot(np.dot(X.T, np.diag(
-                        np.multiply(np.multiply(o_normalized[:, f+1],
-                                                (e == f) - o_normalized[:, e+1]),
+            h = np.zeros((p * (q - 1), p * (q - 1)))
+            for e in range(q - 1):
+                for f in range(q - 1):
+                    h[e * p: (e + 1) * p, f * p: (f + 1) * p] = -np.dot(np.dot(X.T, np.diag(
+                        np.multiply(np.multiply(o_normalized[:, f + 1],
+                                                (e == f) - o_normalized[:, e + 1]),
                                     sample_weight))), X)
             if np.sum(sample_weight) > 0:
                 h = h / np.sum(sample_weight) * X.shape[0]
-            if np.all(np.linalg.eigvals(-h) > 0) and np.linalg.cond(-h) < 1/sys.float_info.epsilon:
-                sd = np.sqrt(np.diag(np.linalg.inv(-h))).reshape(p, q-1, order='F')
+            if np.all(np.linalg.eigvals(-h) > 0) and \
+                    np.linalg.cond(-h) < 1 / sys.float_info.epsilon:
+                sd = np.sqrt(np.diag(np.linalg.inv(-h))).reshape(p, q - 1, order='F')
                 sd = np.hstack((np.zeros((p, 1)), sd))
             else:
                 sd = None
@@ -541,16 +694,45 @@ class MNL(BaseModel):
     def estimate_loglikelihood(self, X, Y, sample_weight):
         return NotImplementedError
 
+    def label_to_column(self, Y):
+        unique_label = np.unique(Y)
+        output_map = {}
+        for column_id, label in enumerate(unique_label):
+            output_map[label] = column_id
+        return output_map
+
+    def log_prob_exclude_set(self, log_prob, exclude_set):
+        if exclude_set is not None:
+            for exclude_label in exclude_set:
+                if exclude_label not in self.label_to_column_map:
+                    continue
+                exclude_column = self.label_to_column_map[exclude_label]
+                log_prob[:, exclude_column] = -float('inf')
+        return log_prob
+
 
 class MNLD(MNL):
     """
     A MNL for discrete data with input and output.
     """
+
     def __init__(self, solver='newton-cg', fit_intercept=True, est_sd=False, penalty=None,
-                 reg=0, l1_ratio=0, tol=1e-4, max_iter=100):
+                 reg=0, l1_ratio=0, tol=1e-4, max_iter=100,
+                 n_features=None, n_targets=None,
+                 coef=None, sd=None, dispersion=None, converged=None):
         super(MNLD, self).__init__(fam='MNLD', solver=solver, fit_intercept=fit_intercept,
                                    est_sd=est_sd, penalty=penalty, reg=reg,
-                                   l1_ratio=l1_ratio, tol=tol, max_iter=max_iter)
+                                   l1_ratio=l1_ratio, tol=tol, max_iter=max_iter,
+                                   n_features=n_features, n_targets=n_targets,
+                                   coef=coef, sd=sd, dispersion=dispersion, converged=converged)
+
+    @staticmethod
+    def from_json_file(config):
+        # TODO clean up, no need to have this function anymore
+        """Create an MNLD object from json config.
+        """
+        # TODO: Load the config file.
+        return MNLD()
 
     def fit(self, X, Y, sample_weight=None):
         """
@@ -574,7 +756,7 @@ class MNLD(MNL):
             c = 1e200
         else:
             penalty1 = self.penalty
-            c = 1/self.reg
+            c = 1 / self.reg
         if X.ndim == 1:
             X = X.reshape(-1, 1)
         if self.fit_intercept:
@@ -594,6 +776,7 @@ class MNLD(MNL):
             return
 
         self.lb = LabelBinarizer().fit(Y)
+        self.label_to_column_map = self.label_to_column(Y)
 
         model = linear_model.LogisticRegression(fit_intercept=False, penalty=penalty1, C=c,
                                                 multi_class='multinomial', solver=self.solver,
@@ -602,7 +785,7 @@ class MNLD(MNL):
         model.fit(X, Y, sample_weight=sample_weight)
         w0 = model.coef_
         if self.n_targets == 2:
-            w0 = np.vstack((np.zeros((1, self.n_features)), w0*2))
+            w0 = np.vstack((np.zeros((1, self.n_features)), w0 * 2))
         w1 = w0.reshape(self.n_targets, -1)
         w1 = w1.T - w1.T[:, 0].reshape(-1, 1)
         self.coef = w1
@@ -612,19 +795,40 @@ class MNLD(MNL):
             self.sd = self.estimate_sd(X, sample_weight)
         self.ll = self.estimate_loglikelihood(X, Y, sample_weight)
 
-    def predict(self, X):
+    def predict(self, X, exclude_set=None):
         """
         predict the Y value based on the model
         ----------
         X : design matrix
+        exclude_set : a set of excluded choices.
         Returns
         -------
         predicted value
         """
-        index = np.argmax(self.predict_log_probability(X), axis=1)
+        log_prob = self.predict_log_probability(X)
+        log_prob = self.log_prob_exclude_set(log_prob, exclude_set=exclude_set)
+
+        index = np.argmax(log_prob, axis=1)
         zero = np.zeros((X.shape[0], self.n_targets))
         zero[np.arange(X.shape[0]), index] = 1
         return self.lb.inverse_transform(zero)
+
+    def predict_stochastic(self, X, exclude_set=None):
+        """
+        sample the Y value based on the model
+        ----------
+        X : design matrix
+
+        Returns
+        -------
+        predicted value
+        """
+        log_prob = self.predict_log_probability(X)
+        log_prob = self.log_prob_exclude_set(log_prob, exclude_set=exclude_set)
+        log_prob = np.exp(log_prob)
+        log_prob /= np.sum(log_prob, axis=1)[:, np.newaxis]
+        samples = np.array([np.random.multinomial(1, pvals=prob, size=1)[0] for prob in log_prob])
+        return self.lb.inverse_transform(samples)
 
     def log_probability(self, X, Y):
         """
@@ -643,7 +847,7 @@ class MNLD(MNL):
             Y_aug[np.arange(X.shape[0]), Y_transformed.reshape(-1,)] = 1
         else:
             Y_aug = Y_transformed
-        logP = np.sum(p*Y_aug, axis=1)
+        logP = np.sum(p * Y_aug, axis=1)
 
         return logP
 
@@ -661,11 +865,16 @@ class MNLP(MNL):
     """
     A MNL with probability response for data with input and output.
     """
+
     def __init__(self, solver='newton-cg', fit_intercept=True, est_sd=False, penalty=None,
-                 reg=0, l1_ratio=0, tol=1e-4, max_iter=100):
+                 reg=0, l1_ratio=0, tol=1e-4, max_iter=100,
+                 n_features=None, n_targets=None,
+                 coef=None, sd=None, dispersion=None, converged=None):
         super(MNL, self).__init__(fam='MNLP', solver=solver, fit_intercept=fit_intercept,
                                   est_sd=est_sd, penalty=penalty, reg=reg,
-                                  l1_ratio=l1_ratio, tol=tol, max_iter=max_iter)
+                                  l1_ratio=l1_ratio, tol=tol, max_iter=max_iter,
+                                  n_features=n_features, n_targets=n_targets,
+                                  coef=coef, sd=sd, dispersion=dispersion, converged=converged)
 
     def fit(self, X, Y, sample_weight=None):
         """
@@ -697,7 +906,7 @@ class MNLP(MNL):
                 self.sd = None
             self.ll = 1
             return
-        w0 = np.zeros((self.n_targets*self.n_features, ))
+        w0 = np.zeros((self.n_targets * self.n_features, ))
         if self.solver == 'lbfgs':
             def func(x, *args):
                 return _multinomial_loss_grad(x, *args)[0:2]
@@ -765,7 +974,7 @@ class MNLP(MNL):
 
         assert X.shape[0] == Y.shape[0]
         p = self.predict_log_probability(X)
-        logP = np.sum(p*Y, axis=1)
+        logP = np.sum(p * Y, axis=1)
         return logP
 
     def estimate_loglikelihood(self, X, Y, sample_weight):
