@@ -143,6 +143,7 @@ nose_stub.py
 
 # metastore
 metastore_db/*
+examples/notebooks/metastore_db/*
 
 
 
