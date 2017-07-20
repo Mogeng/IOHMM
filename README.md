@@ -1,13 +1,6 @@
 # IO-HMM
-This is the repository that includes my python implementation of IO-HMM
+This is the python implementation of Input-Output Hidden Markov Model (IO-HMM).
+Please see notebook under examples.
 
-My implementation is easy to use. Please see examples and code in the notebook.
+[![Build Status](https://travis-ci.org/Mogeng/IO-HMM.svg?branch=master)](https://travis-ci.org/Mogeng/IO-HMM) [![Coverage Status](https://coveralls.io/repos/github/Mogeng/IO-HMM/badge.svg)](https://coveralls.io/github/Mogeng/IO-HMM)
 
-Example usage:
-
-
-`SHMM = UnSupervisedIOHMM(num_states=2, max_EM_iter=1000, EM_tol=1e-4)` <br/>
-`SHMM.setData([speed])`<br/>
-`SHMM.setModels(model_emissions = [LM(), MNLD()], model_transition=MNLP(solver='lbfgs'))`<br/>
-`SHMM.setInputs(covariates_initial = [], covariates_transition = [], covariates_emissions = [[],[]])`<br/>
-`SHMM.setOutputs([['rt'],['corr']])`
