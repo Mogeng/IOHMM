@@ -8,76 +8,87 @@ import warnings
 import numpy as np
 
 
-from HMM_utils import calHMM
-from linear_models import MNLP, GLM, LM, MNLD, LabelBinarizer
+from HMM_utils import cal_HMM
+from linear_models import (GLM,
+                           UnivariateOLS, MultivariateOLS,
+                           DiscreteMNL, CrossEntropyMNL)
 
 
 warnings.simplefilter("ignore")
-
+np.random.seed(0)
 # example:
 
 
 class LinearModelLoader(object):
     """The mapping from data_type of a linear model
-       ('LM', 'GLM', 'MNLD', 'MNLP')
+       ('GLM', 'UnivariateOLS', 'MultivariateOLS', 'DiscreteMNL', 'CrossEntropyMNL')
        to the correct class.
 
     """
-    LM = LM
     GLM = GLM
-    MNLD = MNLD
-    MNLP = MNLP
+    UnivariateOLS = UnivariateOLS
+    MultivariateOLS = MultivariateOLS
+    DiscreteMNL = DiscreteMNL
+    CrossEntropyMNL = CrossEntropyMNL
 
 
-class UnSupervisedIOHMM(object):
+class BaseIOHMM(object):
 
-    def __init__(self, num_states=2, EM_tol=1e-4, max_EM_iter=100):
+    def __init__(self, num_states=2):
         self.num_states = num_states
-        self.EM_tol = EM_tol
-        self.max_EM_iter = max_EM_iter
-        self.has_params = False
+        self.trained = False
 
-    def setModels(self, model_emissions, model_initial=MNLP(), model_transition=MNLP()):
+    def set_models(self, model_emissions,
+                   model_initial=CrossEntropyMNL(),
+                   model_transition=CrossEntropyMNL(), trained=False):
         # initial model and transition model must be MNLP
-        self.model_initial = model_initial
-        self.model_transition = [deepcopy(model_transition) for i in range(self.num_states)]
-        self.model_emissions = [deepcopy(model_emissions) for i in range(self.num_states)]
+        if trained:
+            self.model_initial = model_initial
+            self.model_transition = model_transition
+            self.model_emissions = model_emissions
+            self.trained = True
+        else:
+            self.model_initial = model_initial
+            self.model_transition = [deepcopy(model_initial) for _ in range(self.num_states)]
+            self.model_emissions = [deepcopy(model_emissions) for _ in range(self.num_states)]
 
-    def setInputs(self, covariates_initial, covariates_transition, covariates_emissions):
+    def set_inputs(self, covariates_initial, covariates_transition, covariates_emissions):
         self.covariates_initial = covariates_initial
         self.covariates_transition = covariates_transition
         self.covariates_emissions = covariates_emissions
         # input should be a list inidicating the columns of the dataframe
 
-    def setOutputs(self, responses_emissions):
+    def set_outputs(self, responses_emissions):
         # output should be a list inidicating the columns of the dataframe
         self.responses_emissions = responses_emissions
         self.num_emissions = len(responses_emissions)
 
-    def setParams(self, model_initial_coef, model_transition_coef,
-                  model_emissions_coef, model_emissions_dispersion):
-        self.model_initial.coef = model_initial_coef
-        for st in range(self.num_states):
-            self.model_transition[st].coef = model_transition_coef[st]
-        for i in range(self.num_states):
-            for j in range(self.num_emissions):
-                self.model_emissions[i][j].coef = model_emissions_coef[i][j]
-                try:
-                    self.model_emissions[i][j].dispersion = model_emissions_dispersion[i][j]
-                except:
-                    pass
-        self.has_params = True
+    def set_data(self, dfs):
+        raise NotImplementedError
 
-    def setData(self, df_list):
-        self.num_seqs = len(df_list)
-        self.dfs = df_list
-        self.dfs_logStates = map(lambda x: [x, {}], df_list)
-        self.initIO()
+    def _initialize(self):
+        # initialize log_gammas
+        def _initialize_log_gamma(df, log_state):
+            log_gamma = np.log(np.zeros((df.shape[0], self.num_states)))
+            for k in log_state:
+                log_gamma[k, :] = log_state[k]
+            return log_gamma
 
-    def initIO(self):
-        self.log_gammas = [LogGammaMap(df, log_state, self.num_states)
+        self.log_gammas = [_initialize_log_gamma(df, log_state)
                            for df, log_state in self.dfs_logStates]
+        for st in range(self.num_states):
+            if np.exp(np.hstack([lg[:, st] for lg in self.log_gammas])).sum() == 0:
+                for lg in self.log_gammas:
+                    lg[:, st] = np.random.rand(lg.shape[0])
 
+        # initialize log_epsilons
+        self.log_epsilons = [np.random.rand(df.shape[0] - 1, self.num_states, self.num_states) for
+                             df, log_state in self.dfs_logStates]
+
+        # initialize log_likelihood
+        self.log_likelihood = -np.Infinity
+
+        # initialize input/output covariates
         self.inp_initials = [np.array(df[self.covariates_initial].iloc[0]).reshape(
             1, -1).astype('float64') for df, log_state in self.dfs_logStates]
         self.inp_initials_all_users = np.vstack(self.inp_initials)
@@ -100,68 +111,136 @@ class UnSupervisedIOHMM(object):
                                                    x in self.out_emissions]) for
                                         emis in range(self.num_emissions)]
 
-    def initParams(self):
-        self.model_initial.coef = np.random.rand(
-            len(self.covariates_initial) + self.model_initial.fit_intercept, self.num_states)
-        for st in range(self.num_states):
-            self.model_transition[st].coef = np.random.rand(
-                len(self.covariates_transition) + self.model_transition[st].fit_intercept,
-                self.num_states)
-        for i in range(self.num_states):
-            sample_weight = np.exp(np.hstack([lg[:, i] for lg in self.log_gammas]))
-            if sample_weight.sum() > 0:
-                for j in range(self.num_emissions):
-                    X = self.inp_emissions_all_users[j]
-                    Y = self.out_emissions_all_users[j]
-                    self.model_emissions[i][j].fit(X, Y, sample_weight=sample_weight)
-            else:
-                for j in range(self.num_emissions):
-                    if isinstance(self.model_emissions[i][j], GLM):
-                        self.model_emissions[i][j].coef = np.random.rand(
-                            len(self.covariates_emissions[j]) +
-                            self.model_emissions[i][j].fit_intercept,)
-                        self.model_emissions[i][j].dispersion = 1
-                    if isinstance(self.model_emissions[i][j], LM):
-                        if len(self.responses_emissions[j]) == 1:
-                            self.model_emissions[i][j].coef = np.random.rand(
-                                len(self.covariates_emissions[j]) +
-                                self.model_emissions[i][j].fit_intercept,)
-                            self.model_emissions[i][j].dispersion = 1
-                        else:
-                            self.model_emissions[i][j].coef = np.random.rand(len(
-                                self.covariates_emissions[j]) +
-                                self.model_emissions[i][j].fit_intercept,
-                                len(self.responses_emissions[j]))
-                            self.model_emissions[i][j].dispersion = np.eye(
-                                len(self.responses_emissions[j]))
-                    if isinstance(self.model_emissions[i][j], MNLD):
-                        self.model_emissions[i][j].coef = np.random.rand(len(
-                            self.covariates_emissions[j]) +
-                            self.model_emissions[i][j].fit_intercept,
-                            np.unique(self.out_emissions_all_users[j]).shape[0])
-                        self.model_emissions[i][j].lb = LabelBinarizer().fit(
-                            self.out_emissions_all_users[j])
-                    if isinstance(self.model_emissions[i][j], MNLP):
-                        self.model_emissions[i][j].coef = np.random.rand(len(
-                            self.covariates_emissions[j]) +
-                            self.model_emissions[i][j].fit_intercept,
-                            len(self.responses_emissions[j]))
-        self.has_params = True
+    def E_step(self):
+        self.log_gammas = []
+        self.log_epsilons = []
+        self.log_likelihoods = []
+        for seq in range(self.num_seqs):
+            n_records = self.dfs_logStates[seq][0].shape[0]
+            log_prob_initial = self.model_initial.predict_log_proba(
+                self.inp_initials[seq]).reshape(self.num_states,)
+            log_prob_transition = np.zeros((n_records - 1, self.num_states, self.num_states))
+            for st in range(self.num_states):
+                log_prob_transition[:, st, :] = self.model_transition[st].predict_log_proba(
+                    self.inp_transitions[seq])
+            assert log_prob_transition.shape == (n_records - 1, self.num_states, self.num_states)
+            log_Ey = np.zeros((n_records, self.num_states))
+            for emis in range(self.num_emissions):
+                model_collection = [models[emis] for models in self.model_emissions]
+                log_Ey += np.vstack([model.loglike_per_sample(
+                    np.array(self.inp_emissions[seq][emis]).astype('float64'),
+                    np.array(self.out_emissions[seq][emis])) for model in model_collection]).T
 
-    def EStep(self):
+            log_gamma, log_epsilon, log_likelihood = cal_HMM(
+                log_prob_initial, log_prob_transition, log_Ey, self.dfs_logStates[seq][1])
+            self.log_gammas.append(log_gamma)
+            self.log_epsilons.append(log_epsilon)
+            self.log_likelihoods.append(log_likelihood)
+        self.log_likelihood = sum(self.log_likelihoods)
 
-        posteriors = [EStepMap(self.inp_initials[seq], self.inp_transitions[seq],
-                               self.inp_emissions[seq], self.out_emissions[seq],
-                               self.model_initial, self.model_transition, self.model_emissions,
-                               self.num_states, self.num_emissions, self.dfs_logStates[seq][1])
-                      for seq in range(self.num_seqs)]
+    def M_step(self):
+        raise NotImplementedError
 
-        self.log_gammas = [x[0] for x in posteriors]
-        self.log_epsilons = [x[1] for x in posteriors]
-        self.lls = [x[2] for x in posteriors]
-        self.ll = sum(self.lls)
+    def train(self):
+        raise NotImplementedError
 
-    def MStep(self):
+    def to_json(self, path):
+        json_dict = {
+            'data_type': self.__class__.__name__,
+            'properties': {
+                'num_states': self.num_states,
+                'covariates_initial': self.covariates_initial,
+                'covariates_transition': self.covariates_transition,
+                'covariates_emissions': self.covariates_emissions,
+                'responses_emissions': self.responses_emissions,
+                'model_initial': self.model_initial.to_json(
+                    path=os.path.join(path, 'model_initial')),
+                'model_transition': [self.model_transition[st].to_json(
+                    path=os.path.join(path, 'model_transition', 'state_{}'.format(st))) for
+                    st in range(self.num_states)],
+                'model_emissions': [[self.model_emissions[st][emis].to_json(
+                    path=os.path.join(
+                        path, 'model_emissions', 'state_{}'.format(st), 'emission_{}'.format(emis))
+                ) for emis in range(self.num_emissions)] for st in range(self.num_states)]
+            }
+        }
+        return json_dict
+
+    @classmethod
+    def _from_setup(
+            cls, json_dict, num_states,
+            model_initial, model_transition, model_emissions,
+            covariates_initial, covariates_transition, covariates_emissions,
+            responses_emissions, trained):
+        model = cls(num_states=num_states)
+        model.set_models(
+            model_initial=model_initial,
+            model_transition=model_transition,
+            model_emissions=model_emissions,
+            trained=trained)
+        model.set_inputs(covariates_initial=covariates_initial,
+                         covariates_transition=covariates_transition,
+                         covariates_emissions=covariates_emissions)
+        model.set_outputs(responses_emissions=responses_emissions)
+        return model
+
+    @classmethod
+    def from_config(cls, json_dict):
+        return cls._from_setup(
+            json_dict,
+            num_states=json_dict['properties']['num_states'],
+            model_initial=getattr(
+                LinearModelLoader, json_dict['properties']['model_initial']['data_type'])(
+                    **json_dict['properties']['model_initial']['properties']),
+            model_transition=getattr(
+                LinearModelLoader, json_dict['properties']['model_transition']['data_type'])(
+                    **json_dict['properties']['model_transition']['properties']),
+            model_emissions=[getattr(
+                LinearModelLoader, model_emission['data_type'])(**model_emission['properties'])
+                for model_emission in json_dict['properties']['model_emissions']],
+            covariates_initial=json_dict['properties']['covariates_initial'],
+            covariates_transition=json_dict['properties']['covariates_transition'],
+            covariates_emissions=json_dict['properties']['covariates_emissions'],
+            responses_emissions=json_dict['properties']['responses_emissions'],
+            trained=False)
+
+    @classmethod
+    def from_json(cls, json_dict):
+        return cls._from_setup(
+            json_dict,
+            num_states=json_dict['properties']['num_states'],
+            model_initial=getattr(
+                LinearModelLoader, json_dict['properties']['model_initial']['data_type']).from_json(
+                json_dict['properties']['model_initial']),
+            model_transition=[getattr(
+                LinearModelLoader, model_transition_json['data_type']
+            ).from_json(model_transition_json) for
+                model_transition_json in json_dict['properties']['model_transition']],
+            model_emissions=[[getattr(
+                LinearModelLoader, model_emission_json['data_type']
+            ).from_json(model_emission_json) for model_emission_json in model_emissions_json] for
+                model_emissions_json in json_dict['properties']['model_emissions']],
+            covariates_initial=json_dict['properties']['covariates_initial'],
+            covariates_transition=json_dict['properties']['covariates_transition'],
+            covariates_emissions=json_dict['properties']['covariates_emissions'],
+            responses_emissions=json_dict['properties']['responses_emissions'],
+            trained=True)
+
+
+class UnSupervisedIOHMM(BaseIOHMM):
+
+    def __init__(self, num_states=2, EM_tol=1e-4, max_EM_iter=100):
+        super(UnSupervisedIOHMM, self).__init__(num_states=num_states)
+        self.EM_tol = EM_tol
+        self.max_EM_iter = max_EM_iter
+
+    def set_data(self, dfs):
+        assert all([df.shape[0] > 0 for df in dfs])
+        self.num_seqs = len(dfs)
+        self.dfs_logStates = map(lambda x: [x, {}], dfs)
+        self._initialize()
+
+    def M_step(self):
         # optimize initial model
         X = self.inp_initials_all_users
         Y = np.exp(np.vstack([lg[0, :].reshape(1, -1) for lg in self.log_gammas]))
@@ -182,134 +261,126 @@ class UnSupervisedIOHMM(object):
                 self.model_emissions[st][emis].fit(X, Y, sample_weight=sample_weight)
 
     def train(self):
-        if not self.has_params:
-            self.initParams()
-        self.EStep()
         for it in range(self.max_EM_iter):
-            prev_ll = self.ll
-            self.MStep()
-            self.EStep()
-            logging.info('log likelihood of iteration {0}: {1:.4f}'.format(it, self.ll))
-            if abs(self.ll - prev_ll) < self.EM_tol:
+            log_likelihood_prev = self.log_likelihood
+            self.M_step()
+            self.E_step()
+            logging.info('log likelihood of iteration {0}: {1:.4f}'.format(it, self.log_likelihood))
+            if abs(self.log_likelihood - log_likelihood_prev) < self.EM_tol:
                 break
-
-        self.converged = it < self.max_EM_iter
-
-    @classmethod
-    def from_config(cls, config):
-        model = cls(
-            num_states=config['properties']['num_states'],
-            EM_tol=config['properties']['EM_tol'],
-            max_EM_iter=config['properties']['max_EM_iter']
-        )
-        model.setModels(
-            model_initial=getattr(
-                LinearModelLoader, config['properties']['model_initial']['data_type'])(
-                    **config['properties']['model_initial']['properties']),
-            model_transition=getattr(
-                LinearModelLoader, config['properties']['model_transition']['data_type'])(
-                    **config['properties']['model_transition']['properties']),
-            model_emissions=[getattr(
-                LinearModelLoader, model_emission['data_type'])(**model_emission['properties'])
-                for model_emission in config['properties']['model_emissions']]
-        )
-        model.setInputs(covariates_initial=config['properties']['covariates_initial'],
-                        covariates_transition=config['properties']['covariates_transition'],
-                        covariates_emissions=config['properties']['covariates_emissions'])
-        model.setOutputs(config['properties']['responses_emissions'])
-        return model
+        self.trained = True
 
     def to_json(self, path):
-        json_dict = {
-            'data_type': self.__class__.__name__,
-            'properties': {
-                'num_states': self.num_states,
+        json_dict = super(UnSupervisedIOHMM, self).to_json(path)
+        json_dict['properties'].update(
+            {
                 'EM_tol': self.EM_tol,
                 'max_EM_iter': self.max_EM_iter,
-                'covariates_initial': self.covariates_initial,
-                'covariates_transition': self.covariates_transition,
-                'covariates_emissions': self.covariates_emissions,
-                'responses_emissions': self.responses_emissions,
-                'model_initial': self.model_initial.to_json(
-                    path=os.path.join(path, 'model_initial')),
-                'model_transition': [self.model_transition[st].to_json(
-                    path=os.path.join(path, 'model_transition', 'state_{}'.format(st))) for
-                    st in range(self.num_states)],
-                'model_emissions': [[self.model_emissions[st][emis].to_json(
-                    path=os.path.join(
-                        path, 'model_emissions', 'state_{}'.format(st), 'emission_{}'.format(emis))
-                ) for emis in range(self.num_emissions)] for st in range(self.num_states)]
-
             }
-        }
+        )
         return json_dict
 
     @classmethod
-    def from_json(cls, json_dict):
-        model = cls(
-            num_states=json_dict['properties']['num_states'],
-            EM_tol=json_dict['properties']['EM_tol'],
-            max_EM_iter=json_dict['properties']['max_EM_iter']
-        )
-        model.model_initial = getattr(
-            LinearModelLoader, json_dict['properties']['model_initial']['data_type']).from_json(
-            json_dict['properties']['model_initial'])
-        model.model_transition = [getattr(
-            LinearModelLoader, model_transition_json['data_type']
-        ).from_json(model_transition_json) for
-            model_transition_json in json_dict['properties']['model_transition']]
-
-        model.model_emissions = [[getattr(
-            LinearModelLoader, model_emission_json['data_type']
-        ).from_json(model_emission_json) for model_emission_json in model_emissions_json] for
-            model_emissions_json in json_dict['properties']['model_emissions']]
-        model.has_params = True
-        model.setInputs(covariates_initial=json_dict['properties']['covariates_initial'],
-                        covariates_transition=json_dict['properties']['covariates_transition'],
-                        covariates_emissions=json_dict['properties']['covariates_emissions'])
-        model.setOutputs(json_dict['properties']['responses_emissions'])
+    def _from_setup(
+            cls, json_dict, num_states,
+            model_initial, model_transition, model_emissions,
+            covariates_initial, covariates_transition, covariates_emissions,
+            responses_emissions, trained):
+        model = cls(num_states=num_states,
+                    EM_tol=json_dict['properties']['EM_tol'],
+                    max_EM_iter=json_dict['properties']['max_EM_iter'])
+        model.set_models(
+            model_initial=model_initial,
+            model_transition=model_transition,
+            model_emissions=model_emissions,
+            trained=trained)
+        model.set_inputs(covariates_initial=covariates_initial,
+                         covariates_transition=covariates_transition,
+                         covariates_emissions=covariates_emissions)
+        model.set_outputs(responses_emissions=responses_emissions)
         return model
 
 
 class SemiSupervisedIOHMM(UnSupervisedIOHMM):
-
-    def setData(self, dfs_states):
+    def set_data(self, dfs_states):
         self.num_seqs = len(dfs_states)
-        self.dfs = [df for df, state in dfs_states]
         self.dfs_logStates = map(lambda x: [x[0], {k: np.log(x[1][k]) for k in x[1]}], dfs_states)
-        self.initIO()
+        self._initialize()
 
 
-class SupervisedIOHMM(SemiSupervisedIOHMM):
-
-    def __init__(self, num_states=2):
-        self.num_states = num_states
-
-    def setData(self, dfs_states):
-        # here the rdd is the rdd with (k, (df, state)) pairs that df is a dataframe,
-        # state is a dictionary
+class SupervisedIOHMM(BaseIOHMM):
+    # // TODO this is a redundant code as SemiSupervised IOHMM, don't know what to do
+    def set_data(self, dfs_states):
         self.num_seqs = len(dfs_states)
-        self.dfs = [df for df, state in dfs_states]
         self.dfs_logStates = map(lambda x: [x[0], {k: np.log(x[1][k]) for k in x[1]}], dfs_states)
-        self.initIO()
-        self.initIOLabeled()
-        # for labeled data
+        self._initialize()
 
-    def initIOLabeled(self):
-        inp_initials = [inpInitialsLabeled(df, log_state, self.covariates_initial)
+    def _initialize_labeled(self):
+        def _initialize_labeled_input_for_initial(df, log_state):
+            if 0 in log_state:
+                return np.array(df[self.covariates_initial].iloc[0]).reshape(1, -1).astype('float64')
+            else:
+                return np.empty((0, len(self.covariates_initial)), dtype=float)
+
+        def _initialize_labeled_output_for_initial(df, log_state):
+            if 0 in log_state:
+                return log_state[0].reshape(1, -1).astype('float64')
+            else:
+                return np.empty((0, self.num_states), dtype=float)
+
+        def _initialize_labeled_input_for_transition(df, log_state):
+            ind = {}
+            inp = {}
+            for i in range(self.num_states):
+                ind[i] = []
+            for i in log_state:
+                if i + 1 in log_state:
+                    st = int(np.argmax(log_state[i]))
+                    ind[st].append(i + 1)
+            for i in range(self.num_states):
+                inp[i] = np.array(df.iloc[ind[i]][self.covariates_transition]).astype('float64')
+            return inp
+
+        def _initialize_labeled_output_for_transition(df, log_state):
+            ind = {}
+            out = {}
+            for i in range(self.num_states):
+                ind[i] = []
+            for i in log_state:
+                if i + 1 in log_state:
+                    st = int(np.argmax(log_state[i]))
+                    ind[st].append(i + 1)
+            for i in range(self.num_states):
+                out[i] = [log_state[k].reshape(1, -1).astype('float64') for k in ind[i]]
+                if out[i] == []:
+                    out[i] = [np.empty((0, self.num_states), dtype=float)]
+            return out
+
+        def _initialize_labeled_input_output_for_emission(df, log_state, cov):
+            ind = {}
+            inp = {}
+            for i in range(self.num_states):
+                ind[i] = []
+            for i in log_state:
+                st = int(np.argmax(log_state[i]))
+                ind[st].append(i)
+            for i in range(self.num_states):
+                inp[i] = np.array(df.iloc[ind[i]][cov]).astype('float64')
+            return inp
+
+        inp_initials = [_initialize_labeled_input_for_initial(df, log_state)
                         for df, log_state in self.dfs_logStates]
         self.inp_initials_all_users_labeled = np.vstack(inp_initials)
-        out_initials = [outInitialsLabeled(df, log_state, self.num_states)
+        out_initials = [_initialize_labeled_output_for_initial(df, log_state)
                         for df, log_state in self.dfs_logStates]
         self.out_initials_all_users_labeled = np.vstack(out_initials)
 
-        inp_transitions = [inpTransitionsLabeled(
-            df, log_state, self.covariates_transition, self.num_states)
-            for df, log_state in self.dfs_logStates]
+        inp_transitions = [_initialize_labeled_input_for_transition(
+            df, log_state) for df, log_state in self.dfs_logStates]
         self.inp_transitions_all_users_labeled = {i: np.vstack(
             [x[i] for x in inp_transitions]) for i in range(self.num_states)}
-        out_transitions = [outTransitionsLabeled(
-            df, log_state, self.num_states) for df, log_state in self.dfs_logStates]
+        out_transitions = [_initialize_labeled_output_for_transition(
+            df, log_state) for df, log_state in self.dfs_logStates]
         self.out_transitions_all_users_labeled = {i: np.vstack(
             [item for sublist in out_transitions for item in sublist[i]])
             for i in range(self.num_states)}
@@ -317,8 +388,8 @@ class SupervisedIOHMM(SemiSupervisedIOHMM):
         inp_emissions = []
         self.inp_emissions_all_users_labeled = []
         for cov in self.covariates_emissions:
-            inp_emissions.append([inpoutEmissionsLabeled(df, log_state, cov, self.num_states)
-                                  for df, log_state in self.dfs_logStates])
+            inp_emissions.append([_initialize_labeled_input_output_for_emission(
+                df, log_state, cov) for df, log_state in self.dfs_logStates])
         for covs in inp_emissions:
             self.inp_emissions_all_users_labeled.append(
                 {i: np.vstack([x[i] for x in covs]) for i in range(self.num_states)})
@@ -326,20 +397,19 @@ class SupervisedIOHMM(SemiSupervisedIOHMM):
         out_emissions = []
         self.out_emissions_all_users_labeled = []
         for res in self.responses_emissions:
-            out_emissions.append([inpoutEmissionsLabeled(df, log_state, res, self.num_states)
-                                  for df, log_state in self.dfs_logStates])
+            out_emissions.append([_initialize_labeled_input_output_for_emission(
+                df, log_state, res) for df, log_state in self.dfs_logStates])
         for ress in out_emissions:
             self.out_emissions_all_users_labeled.append(
                 {i: np.vstack([x[i] for x in ress]) for i in range(self.num_states)})
 
-    def MStep(self):
+    def M_step(self):
         # optimize initial model
         X = self.inp_initials_all_users_labeled
         Y = np.exp(self.out_initials_all_users_labeled)
         if X.shape[0] == 0:
-            self.model_initial.coef = np.zeros(
-                (self.inp_initials_all_users_labeled.shape[1] + self.model_initial.fit_intercept,
-                 self.num_states))
+            logging.error(('No initial activity is labeled, cannot perform supervised IOHMM,\
+                           try un/semi-supervised IOHMM.'))
         else:
             self.model_initial.fit(X, Y)
 
@@ -348,9 +418,8 @@ class SupervisedIOHMM(SemiSupervisedIOHMM):
         for st in range(self.num_states):
             Y = np.exp(self.out_transitions_all_users_labeled[st])
             if X[st].shape[0] == 0:
-                self.model_transition[st].coef = np.zeros(
-                    (self.inp_transitions_all_users_labeled[st].shape[1] +
-                     self.model_transition[st].fit_intercept, self.num_states))
+                logging.error(('No initial activity is labeled, cannot perform supervised IOHMM,\
+                           try un/semi-supervised IOHMM.'))
             else:
                 self.model_transition[st].fit(X[st], Y)
 
@@ -361,239 +430,12 @@ class SupervisedIOHMM(SemiSupervisedIOHMM):
             X = self.inp_emissions_all_users_labeled[emis]
             Y = self.out_emissions_all_users_labeled[emis]
             for st in range(self.num_states):
-                if X[st].shape[0] != 0:
+                if X[st].shape[0] == 0:
+                    logging.error(('No initial activity is labeled, cannot perform supervised IOHMM,\
+                           try un/semi-supervised IOHMM.'))
+                else:
                     self.model_emissions[st][emis].fit(X[st], Y[st])
 
     def train(self):
-        self.MStep()
-
-
-class UnSupervisedIOHMMMapReduce(UnSupervisedIOHMM):
-
-    def setData(self, rdd_dfs):
-        self.num_seqs = rdd_dfs.count()
-        self.dfs = rdd_dfs
-        self.dfs_logStates = rdd_dfs.mapValues(lambda v: (v, {}))
-        self.initIO()
-
-    def initIO(self):
-        num_states = self.num_states
-        covariates_initial = self.covariates_initial
-        covariates_transition = self.covariates_transition
-        self.log_gammas = self.dfs_logStates.map(
-            lambda (k, v): LogGammaMap(v[0], v[1], num_states)).collect()
-
-        self.inp_initials_all_users = self.dfs_logStates.map(
-            lambda (k, v): np.array(
-                v[0][covariates_initial].iloc[0]
-            ).reshape(1, -1).astype('float64')).reduce(lambda a, b: np.vstack((a, b)))
-
-        self.inp_transitions_all_users = self.dfs_logStates.map(lambda (k, v): np.array(
-            v[0][covariates_transition].iloc[1:]).astype('float64')).reduce(lambda a, b:
-                                                                            np.vstack((a, b)))
-        self.inp_emissions_all_users = []
-        for cov in self.covariates_emissions:
-            self.inp_emissions_all_users.append(self.dfs_logStates.map(lambda (k, v): np.array(
-                v[0][cov]).astype('float64')).reduce(lambda a, b: np.vstack((a, b))))
-
-        self.out_emissions_all_users = []
-        for res in self.responses_emissions:
-            self.out_emissions_all_users.append(self.dfs_logStates.map(
-                lambda (k, v): np.array(v[0][res])).reduce(lambda a, b: np.vstack((a, b))))
-
-    def EStep(self):
-        model_initial = self.model_initial
-        model_transition = self.model_transition
-        model_emissions = self.model_emissions
-        covariates_initial = self.covariates_initial
-        covariates_transition = self.covariates_transition
-        covariates_emissions = self.covariates_emissions
-        responses_emissions = self.responses_emissions
-        num_states, num_emissions = self.num_states, self.num_emissions
-        posteriors = self.dfs_logStates.map(lambda (k, v): EStepMapReduce(
-            v[0], model_initial, model_transition, model_emissions,
-            covariates_initial, covariates_transition, covariates_emissions,
-            responses_emissions, num_states, num_emissions, v[1])).collect()
-        self.log_gammas = [x[0] for x in posteriors]
-        self.log_epsilons = [x[1] for x in posteriors]
-        self.lls = [x[2] for x in posteriors]
-        self.ll = sum(self.lls)
-
-
-class SemiSupervisedIOHMMMapReduce(UnSupervisedIOHMMMapReduce):
-
-    def setData(self, rdd_dfs_states):
-        self.num_seqs = rdd_dfs_states.count()
-        self.dfs = rdd_dfs_states.mapValues(lambda v: v[0])
-        self.dfs_logStates = rdd_dfs_states.mapValues(
-            lambda v: (v[0], {k: np.log(v[1][k]) for k in v[1]}))
-        self.initIO()
-
-
-class SupervisedIOHMMMapReduce(SemiSupervisedIOHMMMapReduce, SupervisedIOHMM):
-
-    def __init__(self, num_states=2):
-        self.num_states = num_states
-
-    def setData(self, rdd_dfs_states):
-        self.num_seqs = rdd_dfs_states.count()
-        self.dfs = rdd_dfs_states.mapValues(lambda v: v[0])
-        self.dfs_logStates = rdd_dfs_states.mapValues(
-            lambda v: (v[0], {k: np.log(v[1][k]) for k in v[1]}))
-        self.initIOLabeled()
-
-    def initIOLabeled(self):
-        num_states = self.num_states
-        covariates_initial = self.covariates_initial
-        covariates_transition = self.covariates_transition
-        self.inp_initials_all_users_labeled = self.dfs_logStates.map(
-            lambda (k, v): inpInitialsLabeled(
-                v[0], v[1], covariates_initial)).reduce(lambda a, b: np.vstack((a, b)))
-        self.out_initials_all_users_labeled = self.dfs_logStates.map(
-            lambda (k, v): outInitialsLabeled(
-                v[0], v[1], num_states)).reduce(lambda a, b: np.vstack((a, b)))
-        self.inp_transitions_all_users_labeled = self.dfs_logStates.map(
-            lambda (k, v): inpTransitionsLabeled(
-                v[0], v[1], covariates_transition, num_states)
-        ).reduce(lambda a, b: {i: np.vstack((a[i], b[i])) for i in range(num_states)})
-        self.out_transitions_all_users_labeled = self.dfs_logStates.map(
-            lambda (k, v): outTransitionsLabeled(v[0], v[1], num_states)).reduce(
-            lambda a, b: {i: np.vstack(([item for sublist in a[i] for item in sublist],
-                                        [item for sublist in b[i] for item in sublist]))
-                          for i in range(num_states)})
-
-        self.inp_emissions_all_users_labeled = []
-        for cov in self.covariates_emissions:
-            self.inp_emissions_all_users_labeled.append(
-                self.dfs_logStates.map(lambda (k, v): inpoutEmissionsLabeled(
-                    v[0], v[1], cov, num_states)
-                ).reduce(lambda a, b: {i: np.vstack((a[i], b[i])) for i in range(num_states)}))
-
-        self.out_emissions_all_users_labeled = []
-        for res in self.responses_emissions:
-            self.out_emissions_all_users_labeled.append(
-                self.dfs_logStates.map(lambda (k, v): inpoutEmissionsLabeled(
-                    v[0], v[1], res, num_states)
-                ).reduce(lambda a, b: {i: np.vstack((a[i], b[i])) for i in range(num_states)}))
-
-    def EStep(self):
-        SemiSupervisedIOHMMMapReduce.EStep(self)
-
-    def train(self):
-        SupervisedIOHMM.train(self)
-
-
-def LogGammaMap(df, log_state, num_states):
-    log_gamma = np.log(np.zeros((df.shape[0], num_states)))
-    for k in log_state:
-        log_gamma[k, :] = log_state[k]
-    return log_gamma
-
-
-def EStepMapReduce(df, model_initial, model_transition, model_emissions,
-                   covariates_initial, covariates_transition, covariates_emissions,
-                   responses_emissions, num_states, num_emissions, log_state={}):
-
-    n_records = df.shape[0]
-    log_prob_initial = model_initial.predict_log_probability(
-        np.array(
-            df[covariates_initial].iloc[0]).reshape(1, -1).astype('float64')).reshape(num_states,)
-    log_prob_transition = np.zeros((n_records - 1, num_states, num_states))
-    for st in range(num_states):
-        log_prob_transition[:, st, :] = model_transition[st].predict_log_probability(
-            np.array(df[covariates_transition].iloc[1:]).astype('float64'))
-    assert log_prob_transition.shape == (n_records - 1, num_states, num_states)
-    log_Ey = np.zeros((n_records, num_states))
-    for emis in range(num_emissions):
-        model_collection = [models[emis] for models in model_emissions]
-        log_Ey += np.vstack([model.log_probability(
-            np.array(df[covariates_emissions[emis]]).astype('float64'),
-            np.array(df[responses_emissions[emis]])) for model in model_collection]).T
-
-    log_gamma, log_epsilon, ll = calHMM(log_prob_initial, log_prob_transition, log_Ey, log_state)
-
-    return [log_gamma, log_epsilon, ll]
-
-
-def EStepMap(inp_initials, inp_transitions, inp_emissions, out_emissions,
-             model_initial, model_transition, model_emissions,
-             num_states, num_emissions, log_state={}):
-
-    n_records = inp_transitions.shape[0] + 1
-    log_prob_initial = model_initial.predict_log_probability(inp_initials).reshape(num_states,)
-    log_prob_transition = np.zeros((n_records - 1, num_states, num_states))
-    for st in range(num_states):
-        log_prob_transition[:, st, :] = model_transition[st].predict_log_probability(
-            inp_transitions)
-    assert log_prob_transition.shape == (n_records - 1, num_states, num_states)
-    log_Ey = np.zeros((n_records, num_states))
-    for emis in range(num_emissions):
-        model_collection = [models[emis] for models in model_emissions]
-        log_Ey += np.vstack([model.log_probability(
-            np.array(inp_emissions[emis]).astype('float64'),
-            np.array(out_emissions[emis])) for model in model_collection]).T
-
-    log_gamma, log_epsilon, ll = calHMM(log_prob_initial, log_prob_transition, log_Ey, log_state)
-
-    return [log_gamma, log_epsilon, ll]
-
-
-def inpInitialsLabeled(df, log_state, covariates_initial):
-    if 0 in log_state:
-        return np.array(df[covariates_initial].iloc[0]).reshape(1, -1).astype('float64')
-    else:
-        return np.empty((0, len(covariates_initial)), dtype=float)
-
-
-def outInitialsLabeled(df, log_state, num_states):
-    if 0 in log_state:
-        return log_state[0].reshape(1, -1).astype('float64')
-    else:
-        return np.empty((0, num_states), dtype=float)
-
-
-def inpTransitionsLabeled(df, log_state, covariates_transition, num_states):
-    ind = {}
-    inp = {}
-    for i in range(num_states):
-        ind[i] = []
-    for i in log_state:
-        if i + 1 in log_state:
-            st = int(np.argmax(log_state[i]))
-            ind[st].append(i + 1)
-
-    for i in range(num_states):
-        inp[i] = np.array(df.ix[ind[i], covariates_transition]).astype('float64')
-
-    return inp
-
-
-def outTransitionsLabeled(df, log_state, num_states):
-    ind = {}
-    out = {}
-    for i in range(num_states):
-        ind[i] = []
-    for i in log_state:
-        if i + 1 in log_state:
-            st = int(np.argmax(log_state[i]))
-            ind[st].append(i + 1)
-    for i in range(num_states):
-        out[i] = [log_state[k].reshape(1, -1).astype('float64') for k in ind[i]]
-        if out[i] == []:
-            out[i] = [np.empty((0, num_states), dtype=float)]
-
-    return out
-
-
-def inpoutEmissionsLabeled(df, log_state, cov, num_states):
-    ind = {}
-    inp = {}
-    for i in range(num_states):
-        ind[i] = []
-    for i in log_state:
-        st = int(np.argmax(log_state[i]))
-        ind[st].append(i)
-    for i in range(num_states):
-        inp[i] = np.array(df.ix[ind[i], cov]).astype('float64')
-
-    return inp
+        self._initialize_labeled()
+        self.M_step()
