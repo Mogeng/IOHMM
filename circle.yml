@@ -1,0 +1,12 @@
+dependencies:
+  override:
+    - pip install .[tests] --process-dependency-links
+    - pip install coveralls
+
+test:
+  override:
+    - flake8
+    - nosetests -vv --with-coverage
+
+  post:
+    - coveralls
