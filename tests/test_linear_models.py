@@ -189,8 +189,6 @@ class UnivariateOLSTests(unittest.TestCase):
                        self.data_longley.endog[0:1, ], sample_weight=0.5)
         # coef
         self.assertEqual(self.model.coef.shape, (7, ))
-        # stderr
-        np.testing.assert_array_equal(self.model.stderr, np.zeros(7))
         # scale
         self.assertEqual(self.model.dispersion, 0)
         # loglike_per_sample
