@@ -16,6 +16,7 @@ from linear_models import (GLM,
 
 warnings.simplefilter("ignore")
 np.random.seed(0)
+EPS = np.finfo(float).eps
 # example:
 
 
@@ -77,7 +78,7 @@ class BaseIOHMM(object):
         self.log_gammas = [_initialize_log_gamma(df, log_state)
                            for df, log_state in self.dfs_logStates]
         for st in range(self.num_states):
-            if np.exp(np.hstack([lg[:, st] for lg in self.log_gammas])).sum() == 0:
+            if np.exp(np.hstack([lg[:, st] for lg in self.log_gammas])).sum() < EPS:
                 for lg in self.log_gammas:
                     lg[:, st] = np.random.rand(lg.shape[0])
 

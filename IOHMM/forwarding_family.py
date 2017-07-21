@@ -15,6 +15,8 @@ from statsmodels.genmod.families.family import (Poisson,
                                                 NegativeBinomial)
 import statsmodels.genmod.families.links as L
 
+EPS = np.finfo(float).eps
+
 
 class ForwardingFamily(object):
     """
@@ -330,7 +332,7 @@ class ForwardingGaussian(ForwardingFamily):
         -----
         llf_i = - 1 / 2 * ((Y_i - mu_i)^2 / scale + log(2 * \pi * scale))
         """
-        if scale > 0:
+        if scale > EPS:
             return ((endog * mu - mu**2 / 2.) / scale -
                     endog**2 / (2 * scale) - .5 * np.log(2 * np.pi * scale)).reshape(-1,)
         else:
@@ -386,7 +388,7 @@ class ForwardingGamma(ForwardingFamily):
                  (scale -1) * \log(Y) + \log(scale) + scale *
                  \ln \Gamma(1 / scale))
         """
-        if scale > 0:
+        if scale > EPS:
             endog_mu = self.family._clean(endog / mu)
             return (-(endog_mu - np.log(endog_mu) + scale *
                       np.log(endog) + np.log(scale) + scale *
@@ -522,7 +524,7 @@ class ForwardingInverseGaussian(ForwardingFamily):
         llf_i = -1/2 * ((Y_i - \mu_i)^2 / (Y_i *
                  \mu_i^2 * scale) + \log(scale * Y_i^3) + \log(2 * \pi))
         """
-        if scale > 0:
+        if scale > EPS:
             return -.5 * ((endog - mu)**2 / (endog * mu**2 * scale) +
                           np.log(scale * endog**3) + np.log(2 * np.pi)).reshape(-1,)
         else:
@@ -593,7 +595,7 @@ class ForwardingNegativeBinomial(ForwardingFamily):
            Constant = \ln \Gamma{(Y_i + 1/ \alpha )} - \ln \Gamma(Y_i + 1) -
                       \ln \Gamma{(1/ \alpha )}
         """
-        if scale > 0:
+        if scale > EPS:
             lin_pred = self.family._link(mu)
             constant = (special.gammaln(endog + 1 / self.alpha) -
                         special.gammaln(endog + 1) - special.gammaln(1 / self.alpha))

@@ -40,6 +40,8 @@ from sklearn.preprocessing import label_binarize
 import statsmodels.api as sm
 from statsmodels.tools import add_constant
 
+EPS = np.finfo(float).eps
+
 
 class BaseModel(object):
     """
@@ -233,7 +235,7 @@ class GLM(BaseModel):
         def _estimate_stderr():
             # this is different from the implementations from statsmodels,
             # that we do not consider dof
-            if self.reg_method is None or self.alpha == 0:
+            if self.reg_method is None or self.alpha < EPS:
                 return fit_results.bse * np.sqrt(np.sum(sample_weight) / X.shape[0])
             return None
 
@@ -248,14 +250,14 @@ class GLM(BaseModel):
             sample_weight = np.ones(X.shape[0])
         elif isinstance(sample_weight, numbers.Number):
             sample_weight = np.ones(X.shape[0]) * sample_weight
-        if np.sum(sample_weight) == 0:
+        if np.sum(sample_weight) < EPS:
             logging.warning('Sum of sample weight is 0')
             return
 
         self._model = sm.GLM(Y, X_train, family=self.family, freq_weights=sample_weight)
         # dof in weighted regression does not make sense, hard code it to the total weights
         self._model.df_resid = np.sum(sample_weight)
-        if self.reg_method is None or self.alpha == 0:
+        if self.reg_method is None or self.alpha < EPS:
             fit_results = self._model.fit(
                 maxiter=self.max_iter, tol=self.tol, method=self.solver)
         else:
@@ -439,7 +441,7 @@ class UnivariateOLS(OLS):
             # this is different from the implementations from statsmodels,
             # that we do not consider dof
             # and it is not the same stderr as WLS!
-            if self.reg_method is None or self.alpha == 0:
+            if self.reg_method is None or self.alpha < EPS:
                 wexog = self._model.wexog
                 try:
                     XWX_inverse_XW_sqrt = np.linalg.inv(np.dot(wexog.T, wexog)).dot(wexog.T)
@@ -460,12 +462,12 @@ class UnivariateOLS(OLS):
             sample_weight = np.ones(X.shape[0])
         elif isinstance(sample_weight, numbers.Number):
             sample_weight = np.ones(X.shape[0]) * sample_weight
-        if np.sum(sample_weight) == 0:
+        if np.sum(sample_weight) < EPS:
             logging.warning('Sum of sample weight is 0, not fitting model')
             return
         self._model = sm.WLS(Y, X_train, weights=sample_weight)
         self._model.df_resid = np.sum(sample_weight)
-        if self.reg_method is None or self.alpha == 0:
+        if self.reg_method is None or self.alpha < EPS:
             fit_results = self._model.fit(method=self.solver)
         else:
             fit_results = self._model.fit_regularized(
@@ -490,7 +492,7 @@ class UnivariateOLS(OLS):
             logging.warning('No trained model, cannot calculate loglike.')
             return None
         mu = self.predict(X)
-        if self.dispersion > 0:
+        if self.dispersion > EPS:
             rv = norm(mu, np.sqrt(self.dispersion))
             return rv.logpdf(Y)
         else:
@@ -515,7 +517,7 @@ class MultivariateOLS(OLS):
         self.max_iter = max_iter
         self.dispersion = dispersion
         if self.coef is not None:
-            if self.reg_method is None or self.alpha == 0:
+            if self.reg_method is None or self.alpha < EPS:
                 self._model = linear_model.LinearRegression(
                     fit_intercept=False)
             if self.reg_method == 'l1':
@@ -559,7 +561,7 @@ class MultivariateOLS(OLS):
             # https://stats.stackexchange.com/questions/27033/in-r-given-an-output-from-
             # optim-with-a-hessian-matrix-how-to-calculate-paramet
             # http://msekce.karlin.mff.cuni.cz/~vorisek/Seminar/0910l/jonas.pdf
-            if self.reg_method is None or self.alpha == 0:
+            if self.reg_method is None or self.alpha < EPS:
                 wexog, wendog = _rescale_data(X_train, Y, sample_weight)
                 stderr = np.zeros(self.coef.shape)
                 try:
@@ -583,7 +585,7 @@ class MultivariateOLS(OLS):
             sample_weight = np.ones(X.shape[0])
         elif isinstance(sample_weight, numbers.Number):
             sample_weight = np.ones(X.shape[0]) * sample_weight
-        if np.sum(sample_weight) == 0:
+        if np.sum(sample_weight) < EPS:
             logging.warning('Sum of sample weight is 0, not fitting model')
             return
         self._model.fit(X_train, Y, sample_weight)
@@ -605,11 +607,11 @@ class MultivariateOLS(OLS):
         # https://stackoverflow.com/questions/13312498/how-to-find-degenerate-
         # rows-columns-in-a-covariance-matrix
 
-        zero_inds = np.where(np.diag(self.dispersion) == 0)[0]
+        zero_inds = np.where(np.diag(self.dispersion) < EPS)[0]
         non_zero_inds = np.setdiff1d(
             np.arange(Y.shape[1]), zero_inds, assume_unique=True)
         dispersion = self.dispersion[np.ix_(non_zero_inds, non_zero_inds)]
-        if np.linalg.det(dispersion) > 0:
+        if np.linalg.det(dispersion) > EPS:
             # This is a harsh test, if the det is ensured to be > 0
             # all diagonal of dispersion will be > 0
             # for the zero parts:
@@ -721,7 +723,7 @@ class MNL(BaseModel):
             sample_weight = np.ones(X.shape[0])
         elif isinstance(sample_weight, numbers.Number):
             sample_weight = np.ones(X.shape[0]) * sample_weight
-        if np.sum(sample_weight) == 0:
+        if np.sum(sample_weight) < EPS:
             logging.warning('Sum of sample weight is 0, not fitting model')
             return
 
@@ -819,7 +821,7 @@ class MNL(BaseModel):
         assert X.shape[0] == Y.shape[0]
         assert Y.shape[1] == self.n_classes
         log_p = np.sum(self.predict_log_proba(X) * Y, axis=1)
-        log_p[np.sum(Y, axis=1) == 0] = -np.Infinity
+        log_p[np.sum(Y, axis=1) < EPS] = -np.Infinity
         return log_p
 
     def to_json(self, path):
@@ -944,7 +946,7 @@ class CrossEntropyMNL(MNL):
             sample_weight = np.ones(X.shape[0])
         elif isinstance(sample_weight, numbers.Number):
             sample_weight = np.ones(X.shape[0]) * sample_weight
-        if np.sum(sample_weight) == 0:
+        if np.sum(sample_weight) < EPS:
             logging.warning('Sum of sample weight is 0, not fitting model')
             return
         n_samples, n_targets = X.shape[0], Y.shape[1]
