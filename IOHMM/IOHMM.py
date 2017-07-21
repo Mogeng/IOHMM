@@ -318,7 +318,8 @@ class SupervisedIOHMM(BaseIOHMM):
     def _initialize_labeled(self):
         def _initialize_labeled_input_for_initial(df, log_state):
             if 0 in log_state:
-                return np.array(df[self.covariates_initial].iloc[0]).reshape(1, -1).astype('float64')
+                return np.array(
+                    df[self.covariates_initial].iloc[0]).reshape(1, -1).astype('float64')
             else:
                 return np.empty((0, len(self.covariates_initial)), dtype=float)
 

@@ -226,11 +226,13 @@ class GLM(BaseModel):
         sample_weight: sample weight vector
         """
         def _estimate_dispersion():
-            # this is different from the implementations from statsmodels that we do not consider dof
+            # this is different from the implementations from statsmodels,
+            # that we do not consider dof
             return self._model.scale
 
         def _estimate_stderr():
-            # this is different from the implementations from statsmodels that we do not consider dof
+            # this is different from the implementations from statsmodels,
+            # that we do not consider dof
             if self.reg_method is None or self.alpha == 0:
                 return fit_results.bse * np.sqrt(np.sum(sample_weight) / X.shape[0])
             return None
@@ -434,7 +436,8 @@ class UnivariateOLS(OLS):
             return np.inner(wresid, wresid) / np.sum(sample_weight)
 
         def _estimate_stderr():
-            # this is different from the implementations from statsmodels that we do not consider dof
+            # this is different from the implementations from statsmodels,
+            # that we do not consider dof
             # and it is not the same stderr as WLS!
             if self.reg_method is None or self.alpha == 0:
                 wexog = self._model.wexog
@@ -513,17 +516,21 @@ class MultivariateOLS(OLS):
         self.dispersion = dispersion
         if self.coef is not None:
             if self.reg_method is None or self.alpha == 0:
-                self._model = linear_model.LinearRegression(fit_intercept=False)
+                self._model = linear_model.LinearRegression(
+                    fit_intercept=False)
             if self.reg_method == 'l1':
-                self._model = linear_model.Lasso(fit_intercept=False, alpha=self.alpha,
-                                                 tol=self.tol, max_iter=self.max_iter)
+                self._model = linear_model.Lasso(
+                    fit_intercept=False, alpha=self.alpha,
+                    tol=self.tol, max_iter=self.max_iter)
             if self.reg_method == 'l2':
-                self._model = linear_model.Ridge(fit_intercept=False, alpha=self.alpha, tol=self.tol,
-                                                 max_iter=self.max_iter, solver=self.solver)
+                self._model = linear_model.Ridge(
+                    fit_intercept=False, alpha=self.alpha, tol=self.tol,
+                    max_iter=self.max_iter, solver=self.solver)
             if self.reg_method == 'elastic_net':
-                self._model = linear_model.ElasticNet(fit_intercept=False, alpha=self.alpha,
-                                                      l1_ratio=self.l1_ratio, tol=self.tol,
-                                                      max_iter=self.max_iter)
+                self._model = linear_model.ElasticNet(
+                    fit_intercept=False, alpha=self.alpha,
+                    l1_ratio=self.l1_ratio, tol=self.tol,
+                    max_iter=self.max_iter)
             self._model.coef_ = coef
             self._model.intercept_ = 0
 
@@ -543,11 +550,14 @@ class MultivariateOLS(OLS):
             return np.dot(wresid, wresid) / np.sum(sample_weight)
 
         def _estimate_stderr():
-            # this is different from the implementations from statsmodels that we do not consider dof
+            # this is different from the implementations from statsmodels
+            # that we do not consider dof
             # http://www.public.iastate.edu/~maitra/stat501/lectures/MultivariateRegression.pdf
-            # https://stats.stackexchange.com/questions/52704/covariance-of-linear-regression-coefficients-in-weighted-least-squares-method
+            # https://stats.stackexchange.com/questions/52704/covariance-of-linear-
+            # regression-coefficients-in-weighted-least-squares-method
             # http://pj.freefaculty.org/guides/stat/Regression/GLS/GLS-1-guide.pdf
-            # https://stats.stackexchange.com/questions/27033/in-r-given-an-output-from-optim-with-a-hessian-matrix-how-to-calculate-paramet
+            # https://stats.stackexchange.com/questions/27033/in-r-given-an-output-from-
+            # optim-with-a-hessian-matrix-how-to-calculate-paramet
             # http://msekce.karlin.mff.cuni.cz/~vorisek/Seminar/0910l/jonas.pdf
             if self.reg_method is None or self.alpha == 0:
                 wexog, wendog = _rescale_data(X_train, Y, sample_weight)
@@ -592,7 +602,8 @@ class MultivariateOLS(OLS):
             logging.warning('No trained model, cannot calculate loglike.')
             return None
         mu = self.predict(X)
-        # https://stackoverflow.com/questions/13312498/how-to-find-degenerate-rows-columns-in-a-covariance-matrix
+        # https://stackoverflow.com/questions/13312498/how-to-find-degenerate-
+        # rows-columns-in-a-covariance-matrix
 
         zero_inds = np.where(np.diag(self.dispersion) == 0)[0]
         non_zero_inds = np.setdiff1d(
@@ -685,16 +696,20 @@ class MNL(BaseModel):
             # http://mplab.ucsd.edu/tutorials/MultivariateLogisticRegression.pdf
             # https://github.com/cran/mlogit/blob/master/R/mlogit.methods.R
             # https://arxiv.org/pdf/1404.3177.pdf
-            # https://stats.stackexchange.com/questions/283780/calculate-standard-error-of-weighted-logistic-regression-coefficients
-            # It seems that MNL with sample weights may not be able to estimate stderr of coefficients
+            # https://stats.stackexchange.com/questions/283780/calculate-standard-
+            # error-of-weighted-logistic-regression-coefficients
+            # It seems that MNL with sample weights may not
+            # be able to estimate stderr of coefficients
             # The reason is that
             # 1. the hessian is not scale-invariant to sample_weight
             # 2. There is no likelihood in weighted MNL
             # Two codes to calculate hessian:
             # 1. with sample weights:
-            # https://github.com/scikit-learn/scikit-learn/blob/ab93d657eb4268ac20c4db01c48065b5a1bfe80d/sklearn/linear_model/logistic.py
+            # https://github.com/scikit-learn/scikit-learn/
+            # blob/ab93d657eb4268ac20c4db01c48065b5a1bfe80d/sklearn/linear_model/logistic.py
             # 2. without sample weights
-            # http://www.statsmodels.org/dev/_modules/statsmodels/discrete/discrete_model.html#MNLogit
+            # http://www.statsmodels.org/dev/_modules/statsmodels/
+            # discrete/discrete_model.html#MNLogit
             # now a placeholder
             return None
 
@@ -923,7 +938,8 @@ class CrossEntropyMNL(MNL):
 
     @staticmethod
     def _label_encoder(X, Y, sample_weight=None):
-        # idea from https://stats.stackexchange.com/questions/90622/regression-model-where-output-is-a-probability
+        # idea from https://stats.stackexchange.com/questions/90622/
+        # regression-model-where-output-is-a-probability
         if sample_weight is None:
             sample_weight = np.ones(X.shape[0])
         elif isinstance(sample_weight, numbers.Number):
