@@ -190,14 +190,14 @@ class UnivariateOLSTests(unittest.TestCase):
         # coef
         self.assertEqual(self.model.coef.shape, (7, ))
         # scale
-        self.assertEqual(self.model.dispersion, 0)
+        self.assertAlmostEqual(self.model.dispersion, 0, places=6)
         # loglike_per_sample
         np.testing.assert_array_equal(self.model.loglike_per_sample(
             self.data_longley.exog[0:1, :], self.data_longley.endog[0:1, ]), np.array([0]))
-        np.testing.assert_array_equal(self.model.loglike_per_sample(
+        np.testing.assert_array_almost_equal(self.model.loglike_per_sample(
             np.array(self.data_longley.exog[0:1, :].tolist() * 6),
             np.array([60323, 0, 60323, 60322, 60322, 60323])),
-            np.array([0, -np.Infinity, 0, -np.Infinity, -np.Infinity, 0]))
+            np.array([0, -np.Infinity, 0, -np.Infinity, -np.Infinity, 0]), decimal=3)
 
     def test_ols_multicolinearty(self):
         self.model_col = UnivariateOLS(
