@@ -11,7 +11,7 @@ install:
 # command to execute test suite
 script:
  - flake8 --max-line-length=100
- - nosetests --with-coverage
+ - nosetests --with-coverage --cover-package=IOHMM
 
 # Send results of tests to coveralls
 after_success:

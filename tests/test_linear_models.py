@@ -54,7 +54,7 @@ class UnivariateOLSTests(unittest.TestCase):
             (890420.383607373, 84.9149257747669, 0.03349,
              0.488399681651699, 0.214274163161675, 0.226073200069370,
              455.478499142212),
-            decimal=3)
+            decimal=2)
         # scale
         self.assertAlmostEqual(
             self.model.dispersion / (9. / self.data_longley.exog.shape[0]),
