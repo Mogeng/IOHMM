@@ -488,9 +488,12 @@ class OLS(BaseModel):
             log_p += rv.logpdf(Y[:, non_zero_inds] - mu[:, non_zero_inds])
             return log_p
         else:
-            logging.error(('Dispersion matrix is singular, not able to calculate likelihood.\
-                            Most like due to perfect correlations within dependent variables. \
-                            Try another model specification.'))
+            logging.error("""Dispersion matrix is singular, not able to calculate likelihood.
+            Most like due to perfect correlations within dependent variables.
+            Try another model specification.""")
+            raise ValueError("""Dispersion matrix is singular, not able to calculate likelihood.
+            Most like due to perfect correlations within dependent variables.
+            Try another model specification.""")
 
     def to_json(self, path):
         json_dict = super(OLS, self).to_json(path=path)
