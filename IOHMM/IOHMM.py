@@ -9,9 +9,7 @@ import numpy as np
 
 
 from HMM_utils import cal_HMM
-from linear_models import (GLM,
-                           UnivariateOLS, MultivariateOLS,
-                           DiscreteMNL, CrossEntropyMNL)
+from linear_models import (GLM, OLS, DiscreteMNL, CrossEntropyMNL)
 
 
 warnings.simplefilter("ignore")
@@ -22,13 +20,12 @@ EPS = np.finfo(float).eps
 
 class LinearModelLoader(object):
     """The mapping from data_type of a linear model
-       ('GLM', 'UnivariateOLS', 'MultivariateOLS', 'DiscreteMNL', 'CrossEntropyMNL')
+       ('GLM', 'OLS', 'DiscreteMNL', 'CrossEntropyMNL')
        to the correct class.
 
     """
     GLM = GLM
-    UnivariateOLS = UnivariateOLS
-    MultivariateOLS = MultivariateOLS
+    OLS = OLS
     DiscreteMNL = DiscreteMNL
     CrossEntropyMNL = CrossEntropyMNL
 
@@ -259,6 +256,7 @@ class UnSupervisedIOHMM(BaseIOHMM):
             Y = self.out_emissions_all_users[emis]
             for st in range(self.num_states):
                 sample_weight = np.exp(np.hstack([lg[:, st] for lg in self.log_gammas]))
+                # now need to add a tolist so that sklearn works fine
                 self.model_emissions[st][emis].fit(X, Y, sample_weight=sample_weight)
 
     def train(self):

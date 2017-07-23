@@ -11,8 +11,7 @@ from .HMM_utils import (cal_HMM,
                         cal_log_epsilon,
                         cal_log_likelihood)
 from .linear_models import (GLM,
-                            UnivariateOLS,
-                            MultivariateOLS,
+                            OLS,
                             DiscreteMNL,
                             CrossEntropyMNL)
 from .forwarding_family import (ForwardingBinomial,
@@ -32,7 +31,7 @@ __all__ = [
     cal_HMM, cal_log_alpha, cal_log_beta,
     cal_log_gamma, cal_log_epsilon,
     cal_log_likelihood,
-    GLM, UnivariateOLS, MultivariateOLS, DiscreteMNL, CrossEntropyMNL,
+    GLM, OLS, DiscreteMNL, CrossEntropyMNL,
     ForwardingBinomial,
     ForwardingGamma,
     ForwardingGaussian,
