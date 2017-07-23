@@ -33,7 +33,7 @@ import os
 
 
 import numpy as np
-from scipy.stats import multivariate_normal, norm
+from scipy.stats import multivariate_normal
 from sklearn import linear_model
 from sklearn.linear_model.base import _rescale_data
 from sklearn.preprocessing import label_binarize
@@ -53,6 +53,8 @@ class BaseModel(object):
                  solver,
                  fit_intercept=True,
                  est_stderr=False,
+                 tol=1e-4,
+                 max_iter=100,
                  reg_method=None,
                  alpha=0,
                  l1_ratio=0,
@@ -65,6 +67,8 @@ class BaseModel(object):
         solver: family specific solver
         fit_intercept: boolean indicating fit intercept or not
         est_stderr: boolean indicating calculte std.err of coefficients (usually expensive) or not
+        tol: tolerence of fitting error
+        max_iter: maximum iteraration of fitting
         reg_method: method to regularize the model, one of (None, elstic_net)
         alpha: regularization strength
         l1_ratio: if elastic_net, the l1 alpha ratio
@@ -75,6 +79,8 @@ class BaseModel(object):
         self.solver = solver
         self.fit_intercept = fit_intercept
         self.est_stderr = est_stderr
+        self.tol = tol
+        self.max_iter = max_iter
         self.reg_method = reg_method
         self.alpha = alpha
         self.l1_ratio = l1_ratio
@@ -135,6 +141,8 @@ class BaseModel(object):
                 'solver': self.solver,
                 'fit_intercept': self.fit_intercept,
                 'est_stderr': self.est_stderr,
+                'tol': self.tol,
+                'max_iter': self.max_iter,
                 'reg_method': self.reg_method,
                 'alpha': self.alpha,
                 'l1_ratio': self.l1_ratio,
@@ -158,9 +166,10 @@ class BaseModel(object):
 
     @classmethod
     def _from_json(cls, json_dict, solver, fit_intercept, est_stderr,
-                   reg_method, alpha, l1_ratio, coef, stderr):
+                   tol, max_iter, reg_method, alpha, l1_ratio, coef, stderr):
         return cls(
             solver=solver, fit_intercept=fit_intercept, est_stderr=est_stderr,
+            tol=tol, max_iter=max_iter,
             reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,
             coef=coef, stderr=stderr)
 
@@ -171,6 +180,8 @@ class BaseModel(object):
             solver=json_dict['properties']['solver'],
             fit_intercept=json_dict['properties']['fit_intercept'],
             est_stderr=json_dict['properties']['est_stderr'],
+            tol=json_dict['properties']['tol'],
+            max_iter=json_dict['properties']['max_iter'],
             reg_method=json_dict['properties']['reg_method'],
             alpha=json_dict['properties']['alpha'],
             l1_ratio=json_dict['properties']['l1_ratio'],
@@ -208,11 +219,10 @@ class GLM(BaseModel):
         """
         super(GLM, self).__init__(
             solver=solver, fit_intercept=fit_intercept, est_stderr=est_stderr,
+            tol=tol, max_iter=max_iter,
             reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,
             coef=coef, stderr=stderr)
         self.family = family
-        self.tol = tol
-        self.max_iter = max_iter
         self.dispersion = dispersion
         if self.coef is not None:
             dummy_X = dummy_Y = dummy_weight = np.zeros(1)
@@ -240,9 +250,7 @@ class GLM(BaseModel):
             return None
 
         if self.fit_intercept:
-            X_train = add_constant(X, has_constant='add')
-        else:
-            X_train = X
+            X = add_constant(X, has_constant='add')
         if Y.ndim == 2 and Y.shape[1] == 1:
             Y = Y.reshape(-1,)
         assert Y.ndim == 1
@@ -254,7 +262,7 @@ class GLM(BaseModel):
             logging.warning('Sum of sample weight is 0')
             return
 
-        self._model = sm.GLM(Y, X_train, family=self.family, freq_weights=sample_weight)
+        self._model = sm.GLM(Y, X, family=self.family, freq_weights=sample_weight)
         # dof in weighted regression does not make sense, hard code it to the total weights
         self._model.df_resid = np.sum(sample_weight)
         if self.reg_method is None or self.alpha < EPS:
@@ -282,10 +290,8 @@ class GLM(BaseModel):
             logging.warning('No trained model, cannot predict.')
             return None
         if self.fit_intercept:
-            X_test = add_constant(X, has_constant='add')
-        else:
-            X_test = X
-        return self._model.predict(self.coef, exog=X_test)
+            X = add_constant(X, has_constant='add')
+        return self._model.predict(self.coef, exog=X)
 
     def loglike_per_sample(self, X, Y):
         """
@@ -310,8 +316,6 @@ class GLM(BaseModel):
                     'data_type': self.family.__class__.__name__,
                     'path': os.path.join(path, 'family.p')
                 },
-                'tol': self.tol,
-                'max_iter': self.max_iter,
                 'dispersion': {
                     'data_type': 'numpy.ndarray',
                     'path': os.path.join(path, 'dispersion.npy')
@@ -327,14 +331,12 @@ class GLM(BaseModel):
 
     @classmethod
     def _from_json(cls, json_dict, solver, fit_intercept, est_stderr,
-                   reg_method, alpha, l1_ratio, coef, stderr):
+                   tol, max_iter, reg_method, alpha, l1_ratio, coef, stderr):
         return cls(
             solver=solver, fit_intercept=fit_intercept, est_stderr=est_stderr,
             reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,
-            coef=coef, stderr=stderr,
+            coef=coef, stderr=stderr, tol=tol, max_iter=max_iter,
             family=pickle.load(open(json_dict['properties']['family']['path'])),
-            tol=json_dict['properties']['tol'],
-            max_iter=json_dict['properties']['max_iter'],
             dispersion=np.load(json_dict['properties']['dispersion']['path']))
 
 
@@ -343,199 +345,39 @@ class OLS(BaseModel):
     A linear model for data with input and output.
     """
 
-    def predict(self, X):
-        """
-        predict the Y value based on the model
-        ----------
-        X : design matrix
-        Returns
-        -------
-        predicted value
-        """
-        if self.coef is None:
-            logging.warning('No trained model, cannot predict.')
-            return None
-        if self.fit_intercept:
-            X_test = add_constant(X, has_constant='add')
-        else:
-            X_test = X
-        return self._model.predict(self.coef, exog=X_test)
-
-    def to_json(self, path):
-        json_dict = super(OLS, self).to_json(path=path)
-        json_dict['properties'].update(
-            {
-                'max_iter': self.max_iter,
-                'dispersion': {
-                    'data_type': 'numpy.ndarray',
-                    'path': os.path.join(path, 'dispersion.npy')
-                }
-            })
-        if not os.path.exists(os.path.dirname(json_dict['properties']['dispersion']['path'])):
-            os.makedirs(os.path.dirname(json_dict['properties']['dispersion']['path']))
-        np.save(json_dict['properties']['dispersion']['path'], self.dispersion)
-        return json_dict
-
-    @classmethod
-    def _from_json_OLS(cls, json_dict, solver, fit_intercept, est_stderr,
-                       reg_method, alpha, l1_ratio, coef, stderr,
-                       max_iter, dispersion):
-        return cls(
-            solver=solver, fit_intercept=fit_intercept, est_stderr=est_stderr,
-            reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,
-            coef=coef, stderr=stderr,
-            max_iter=max_iter, dispersion=dispersion)
-
-    @classmethod
-    def _from_json(cls, json_dict, solver, fit_intercept, est_stderr,
-                   reg_method, alpha, l1_ratio, coef, stderr):
-        return cls._from_json_OLS(
-            json_dict,
-            solver=solver, fit_intercept=fit_intercept, est_stderr=est_stderr,
-            reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,
-            coef=coef, stderr=stderr,
-            max_iter=json_dict['properties']['max_iter'],
-            dispersion=np.load(json_dict['properties']['dispersion']['path']))
-
-
-class UnivariateOLS(OLS):
-    """
-    A linear model for data with input and output.
-    Though the formular is the same as WLS, the meaning of weights are different
-    """
-
-    def __init__(self, solver='pinv', fit_intercept=True, est_stderr=False,
-                 reg_method=None, alpha=0, l1_ratio=0, max_iter=100,
-                 coef=None, stderr=None, dispersion=None):
-        super(UnivariateOLS, self).__init__(
-            solver=solver, fit_intercept=fit_intercept, est_stderr=est_stderr,
-            reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,
-            coef=coef, stderr=stderr)
-        self.max_iter = max_iter
-        self.dispersion = dispersion
-        if self.coef is not None:
-            dummy_X = dummy_Y = dummy_weight = np.zeros(1)
-            self._model = sm.WLS(dummy_Y, dummy_X, weights=dummy_weight)
-
-    def fit(self, X, Y, sample_weight=None):
-        """
-        fit the weighted model
-        Parameters
-        ----------
-        X : design matrix
-        Y : response matrix
-        sample_weight: sample weight vector
-
-        """
-        def _estimate_dispersion():
-            # It is weird that the df_resid in the WLS is not the sum of weights
-            # but the number of observations,
-
-            # This is because it is assuming the wls is used for counting for the
-            # variance of error, not for sample weights.
-            mu, wendog = _rescale_data(self.predict(X), Y, sample_weight)
-            wresid = mu - wendog
-            return np.inner(wresid, wresid) / np.sum(sample_weight)
-
-        def _estimate_stderr():
-            # this is different from the implementations from statsmodels,
-            # that we do not consider dof
-            # and it is not the same stderr as WLS!
-            if self.reg_method is None or self.alpha < EPS:
-                wexog = self._model.wexog
-                try:
-                    XWX_inverse_XW_sqrt = np.linalg.inv(np.dot(wexog.T, wexog)).dot(wexog.T)
-                    return np.sqrt(np.diag(
-                        self.dispersion * XWX_inverse_XW_sqrt.dot(
-                            np.diag(sample_weight)).dot(XWX_inverse_XW_sqrt.T)))
-                except:
-                    return None
-            return None
-        if Y.ndim == 2 and Y.shape[1] == 1:
-            Y = Y.reshape(-1,)
-        assert Y.ndim == 1
-        if self.fit_intercept:
-            X_train = add_constant(X, has_constant='add')
-        else:
-            X_train = X
-        if sample_weight is None:
-            sample_weight = np.ones(X.shape[0])
-        elif isinstance(sample_weight, numbers.Number):
-            sample_weight = np.ones(X.shape[0]) * sample_weight
-        if np.sum(sample_weight) < EPS:
-            logging.warning('Sum of sample weight is 0, not fitting model')
-            return
-        self._model = sm.WLS(Y, X_train, weights=sample_weight)
-        self._model.df_resid = np.sum(sample_weight)
-        if self.reg_method is None or self.alpha < EPS:
-            fit_results = self._model.fit(method=self.solver)
-        else:
-            fit_results = self._model.fit_regularized(
-                method=self.solver, alpha=self.alpha,
-                L1_wt=self.l1_ratio, maxiter=self.max_iter)
-        self.coef = fit_results.params
-        self.dispersion = _estimate_dispersion()
-        if self.est_stderr:
-            self.stderr = _estimate_stderr()
-
-    def loglike_per_sample(self, X, Y):
-        # TODO, apply the same concept to ForwardingFamily
-        """
-        Given a set of X and Y, calculate the probability of
-        observing Y value
-        """
-        assert X.shape[0] == Y.shape[0]
-        if Y.ndim == 2 and Y.shape[1] == 1:
-            Y = Y.reshape(-1,)
-        assert Y.ndim == 1
-        if self.coef is None:
-            logging.warning('No trained model, cannot calculate loglike.')
-            return None
-        mu = self.predict(X)
-        if self.dispersion > EPS:
-            rv = norm(mu, np.sqrt(self.dispersion))
-            return rv.logpdf(Y)
-        else:
-            log_p = np.zeros(Y.shape[0])
-            log_p[~np.isclose(Y, mu)] = - np.Infinity
-        return log_p
-
-
-class MultivariateOLS(OLS):
-    """
-    A multivariate linear model for data with input and output.
-    """
-
     def __init__(self, solver='svd', fit_intercept=True, est_stderr=False,
                  reg_method=None,  alpha=0, l1_ratio=0, tol=1e-4, max_iter=100,
-                 coef=None, stderr=None,  dispersion=None):
-        super(MultivariateOLS, self).__init__(
+                 coef=None, stderr=None,  dispersion=None, n_targets=None):
+        super(OLS, self).__init__(
             solver=solver, fit_intercept=fit_intercept, est_stderr=est_stderr,
+            tol=tol, max_iter=max_iter,
             reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,
             coef=coef, stderr=stderr)
-        self.tol = tol
-        self.max_iter = max_iter
         self.dispersion = dispersion
+        self.n_targets = n_targets
+        self._pick_model()
         if self.coef is not None:
-            if self.reg_method is None or self.alpha < EPS:
-                self._model = linear_model.LinearRegression(
-                    fit_intercept=False)
-            if self.reg_method == 'l1':
-                self._model = linear_model.Lasso(
-                    fit_intercept=False, alpha=self.alpha,
-                    tol=self.tol, max_iter=self.max_iter)
-            if self.reg_method == 'l2':
-                self._model = linear_model.Ridge(
-                    fit_intercept=False, alpha=self.alpha, tol=self.tol,
-                    max_iter=self.max_iter, solver=self.solver)
-            if self.reg_method == 'elastic_net':
-                self._model = linear_model.ElasticNet(
-                    fit_intercept=False, alpha=self.alpha,
-                    l1_ratio=self.l1_ratio, tol=self.tol,
-                    max_iter=self.max_iter)
             self._model.coef_ = coef
             self._model.intercept_ = 0
 
+    def _pick_model(self):
+        if self.reg_method is None or self.alpha < EPS:
+            self._model = linear_model.LinearRegression(
+                fit_intercept=False)
+        if self.reg_method == 'l1':
+            self._model = linear_model.Lasso(
+                fit_intercept=False, alpha=self.alpha,
+                tol=self.tol, max_iter=self.max_iter)
+        if self.reg_method == 'l2':
+            self._model = linear_model.Ridge(
+                fit_intercept=False, alpha=self.alpha, tol=self.tol,
+                max_iter=self.max_iter, solver=self.solver)
+        if self.reg_method == 'elastic_net':
+            self._model = linear_model.ElasticNet(
+                fit_intercept=False, alpha=self.alpha,
+                l1_ratio=self.l1_ratio, tol=self.tol,
+                max_iter=self.max_iter)
+
     def fit(self, X, Y, sample_weight=None):
         """
         fit the weighted model
@@ -548,8 +390,9 @@ class MultivariateOLS(OLS):
         """
         def _estimate_dispersion():
             mu, wendog = _rescale_data(self.predict(X), Y, sample_weight)
+            # this is due to sklearn inconsistency about lasso and linear regression, etc.
             wresid = mu - wendog
-            return np.dot(wresid, wresid) / np.sum(sample_weight)
+            return np.dot(wresid.T, wresid) / np.sum(sample_weight)
 
         def _estimate_stderr():
             # this is different from the implementations from statsmodels
@@ -563,19 +406,22 @@ class MultivariateOLS(OLS):
             # http://msekce.karlin.mff.cuni.cz/~vorisek/Seminar/0910l/jonas.pdf
             if self.reg_method is None or self.alpha < EPS:
                 wexog, wendog = _rescale_data(X_train, Y, sample_weight)
-                stderr = np.zeros(self.coef.shape)
+                stderr = np.zeros((self.n_targets, X_train.shape[1]))
                 try:
                     XWX_inverse_XW_sqrt = np.linalg.inv(np.dot(wexog.T, wexog)).dot(wexog.T)
                 except:
                     return None
-                for response_i in Y.shape[1]:
-                    stderr[:, response_i] = np.sqrt(np.diag(
-                        self.dispersion[response_i, response_i] * XWX_inverse_XW_sqrt.dot(
-                            np.diag(sample_weight)).dot(XWX_inverse_XW_sqrt.T)))
-                return stderr
+                sqrt_diag_XWX_inverse_XW_sqrt_W_XWX_inverse_XW_sqrt = np.sqrt(np.diag(
+                    XWX_inverse_XW_sqrt.dot(np.diag(sample_weight)).dot(XWX_inverse_XW_sqrt.T)))
+                for target in range(self.n_targets):
+                    stderr[target, :] = (np.sqrt(self.dispersion[target, target]) *
+                                         sqrt_diag_XWX_inverse_XW_sqrt_W_XWX_inverse_XW_sqrt)
+                return stderr.reshape(self.coef.shape)
             return None
 
-        assert Y.ndim == 2
+        if Y.ndim == 1:
+            Y = Y.reshape(-1, 1)
+        self.n_targets = Y.shape[1]
 
         if self.fit_intercept:
             X_train = add_constant(X, has_constant='add')
@@ -594,6 +440,22 @@ class MultivariateOLS(OLS):
         if self.est_stderr:
             self.stderr = _estimate_stderr()
 
+    def predict(self, X):
+        """
+        predict the Y value based on the model
+        ----------
+        X : design matrix
+        Returns
+        -------
+        predicted value
+        """
+        if self.coef is None:
+            logging.warning('No trained model, cannot predict.')
+            return None
+        if self.fit_intercept:
+            X = add_constant(X, has_constant='add')
+        return self._model.predict(X).reshape(-1, self.n_targets)
+
     def loglike_per_sample(self, X, Y):
         """
         Given a set of X and Y, calculate the probability of
@@ -606,46 +468,57 @@ class MultivariateOLS(OLS):
         mu = self.predict(X)
         # https://stackoverflow.com/questions/13312498/how-to-find-degenerate-
         # rows-columns-in-a-covariance-matrix
-
+        if Y.ndim == 1:
+            Y = Y.reshape(-1, 1)
         zero_inds = np.where(np.diag(self.dispersion) < EPS)[0]
+        log_p = np.zeros(Y.shape[0])
+        log_p[~np.isclose(
+            np.linalg.norm(
+                Y[:, zero_inds] - mu[:, zero_inds], axis=1), 0)] = - np.Infinity
         non_zero_inds = np.setdiff1d(
             np.arange(Y.shape[1]), zero_inds, assume_unique=True)
         dispersion = self.dispersion[np.ix_(non_zero_inds, non_zero_inds)]
+        if dispersion.shape[0] == 0:
+            return log_p
         if np.linalg.det(dispersion) > EPS:
             # This is a harsh test, if the det is ensured to be > 0
             # all diagonal of dispersion will be > 0
             # for the zero parts:
-            log_p = np.zeros((Y.shape[0],))
-            log_p[~np.isclose(
-                np.linalg.norm(
-                    Y[:, zero_inds] - mu[:, zero_inds], axis=1), 0)] = - np.Infinity
-            rv = multivariate_normal(mu[:, non_zero_inds], dispersion)
-            log_p += rv.logpdf(Y[:, non_zero_inds])
+            rv = multivariate_normal(cov=dispersion)
+            log_p += rv.logpdf(Y[:, non_zero_inds] - mu[:, non_zero_inds])
             return log_p
         else:
-            logging.error('Dispersion matrix is singular, not able to calculate likelihood.')
+            logging.error(('Dispersion matrix is singular, not able to calculate likelihood.\
+                            Most like due to perfect correlations within dependent variables. \
+                            Try another model specification.'))
 
     def to_json(self, path):
-        json_dict = super(MultivariateOLS, self).to_json(path=path)
+        json_dict = super(OLS, self).to_json(path=path)
         json_dict['properties'].update(
             {
-                'tol': self.tol,
+                'dispersion': {
+                    'data_type': 'numpy.ndarray',
+                    'path': os.path.join(path, 'dispersion.npy')
+                },
+                'n_targets': self.n_targets
             })
+        if not os.path.exists(os.path.dirname(json_dict['properties']['dispersion']['path'])):
+            os.makedirs(os.path.dirname(json_dict['properties']['dispersion']['path']))
+        np.save(json_dict['properties']['dispersion']['path'], self.dispersion)
         return json_dict
 
     @classmethod
-    def _from_json_OLS(cls, json_dict, solver, fit_intercept, est_stderr,
-                       reg_method, alpha, l1_ratio, coef, stderr,
-                       max_iter, dispersion):
-        return cls(
-            solver=solver, fit_intercept=fit_intercept, est_stderr=est_stderr,
-            reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,
-            coef=coef, stderr=stderr,
-            max_iter=max_iter, dispersion=dispersion,
-            tol=json_dict['properties']['tol'])
+    def _from_json(cls, json_dict, solver, fit_intercept, est_stderr,
+                   tol, max_iter, reg_method, alpha, l1_ratio, coef, stderr):
+        return cls(solver=solver, fit_intercept=fit_intercept, est_stderr=est_stderr,
+                   reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,
+                   coef=coef, stderr=stderr,
+                   tol=tol, max_iter=max_iter,
+                   dispersion=np.load(json_dict['properties']['dispersion']['path']),
+                   n_targets=json_dict['properties']['n_targets'])
 
 
-class MNL(BaseModel):
+class BaseMNL(BaseModel):
     """
     A MNL for data with input and output.
     """
@@ -655,33 +528,37 @@ class MNL(BaseModel):
                  tol=1e-4, max_iter=100,
                  coef=None, stderr=None,
                  classes=None, n_classes=None):
-        super(MNL, self).__init__(
+        super(BaseMNL, self).__init__(
             solver=solver, fit_intercept=fit_intercept, est_stderr=est_stderr,
+            tol=tol, max_iter=max_iter,
             reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,
             coef=coef, stderr=stderr)
-        self.tol = tol
-        self.max_iter = max_iter
+
         self.classes = classes
         self.n_classes = n_classes
         if self.coef is not None:
             if self.n_classes == 1:
                 pass
             else:
-                C = np.float64(1) / self.alpha
-                if self.n_classes == 2:
-                    self._model = linear_model.LogisticRegression(
-                        fit_intercept=False, penalty=self.reg_method, C=C,
-                        solver=self.solver, tol=self.tol, max_iter=self.max_iter)
-
-                else:
-                    # perform multinomial logistic regression
-                    self._model = linear_model.LogisticRegression(
-                        fit_intercept=False, penalty=self.reg_method, C=C,
-                        solver=self.solver, tol=self.tol, max_iter=self.max_iter,
-                        multi_class='multinomial')
+                self._pick_model()
                 self._model.coef_ = coef
                 self._model.classes_ = classes
                 self._model.intercept_ = 0
+
+    def _pick_model(self):
+        C = np.float64(1) / self.alpha
+        if self.n_classes == 2:
+            # perform logistic regression
+            self._model = linear_model.LogisticRegression(
+                fit_intercept=False, penalty=self.reg_method, C=C,
+                solver=self.solver, tol=self.tol, max_iter=self.max_iter)
+
+        else:
+            # perform multinomial logistic regression
+            self._model = linear_model.LogisticRegression(
+                fit_intercept=False, penalty=self.reg_method, C=C,
+                solver=self.solver, tol=self.tol, max_iter=self.max_iter,
+                multi_class='multinomial')
 
     def fit(self, X, Y, sample_weight=None):
         """
@@ -716,9 +593,7 @@ class MNL(BaseModel):
             return None
 
         if self.fit_intercept:
-            X_train = add_constant(X, has_constant='add')
-        else:
-            X_train = X
+            X = add_constant(X, has_constant='add')
         if sample_weight is None:
             sample_weight = np.ones(X.shape[0])
         elif isinstance(sample_weight, numbers.Number):
@@ -727,7 +602,8 @@ class MNL(BaseModel):
             logging.warning('Sum of sample weight is 0, not fitting model')
             return
 
-        X_train, Y, sample_weight = self._label_encoder(X_train, Y, sample_weight=sample_weight)
+        X, Y, sample_weight = self._label_encoder(
+            X, Y, sample_weight=sample_weight)
         assert Y.ndim == 1
         classes = np.unique(Y)
         self.n_classes = len(classes)
@@ -736,23 +612,11 @@ class MNL(BaseModel):
         if self.n_classes == 1:
             # no need to perform any model
             # self.coef is a all zeros array of shape (n_features,1)
-            self.coef = np.zeros((X_train.shape[1], 1))
+            self.coef = np.zeros((X.shape[1], 1))
             self.classes = classes
         else:
-            C = np.float64(1) / self.alpha
-            if self.n_classes == 2:
-                # perform logistic regression
-                self._model = linear_model.LogisticRegression(
-                    fit_intercept=False, penalty=self.reg_method, C=C,
-                    solver=self.solver, tol=self.tol, max_iter=self.max_iter)
-
-            else:
-                # perform multinomial logistic regression
-                self._model = linear_model.LogisticRegression(
-                    fit_intercept=False, penalty=self.reg_method, C=C,
-                    solver=self.solver, tol=self.tol, max_iter=self.max_iter,
-                    multi_class='multinomial')
-            self._model.fit(X_train, Y, sample_weight=sample_weight)
+            self._pick_model()
+            self._model.fit(X, Y, sample_weight=sample_weight)
             # self.coef shape is wierd in sklearn, I will stick with it
             self.coef = self._model.coef_
             self.classes = self._model.classes_
@@ -779,13 +643,11 @@ class MNL(BaseModel):
             logging.warning('No trained model, cannot predict.')
             return None
         if self.fit_intercept:
-            X_test = add_constant(X, has_constant='add')
-        else:
-            X_test = X
+            X = add_constant(X, has_constant='add')
         if self.n_classes == 1:
             return np.zeros((X.shape[0], 1))
 
-        return self._model.predict_log_proba(X_test)
+        return self._model.predict_log_proba(X)
 
     def predict(self, X):
         """
@@ -801,12 +663,10 @@ class MNL(BaseModel):
             logging.warning('No trained model, cannot predict.')
             return None
         if self.fit_intercept:
-            X_test = add_constant(X, has_constant='add')
-        else:
-            X_test = X
+            X = add_constant(X, has_constant='add')
         if self.n_classes == 1:
             return self.classes[np.zeros(X.shape[0], dtype=np.int)]
-        return self._model.predict(X_test)
+        return self._model.predict(X)
 
     def loglike_per_sample(self, X, Y):
         """
@@ -824,38 +684,25 @@ class MNL(BaseModel):
         log_p[np.sum(Y, axis=1) < EPS] = -np.Infinity
         return log_p
 
-    def to_json(self, path):
-        json_dict = super(MNL, self).to_json(path=path)
-        json_dict['properties'].update(
-            {
-                'tol': self.tol,
-                'max_iter': self.max_iter,
-            })
-        return json_dict
-
     @classmethod
     def _from_json_MNL(cls, json_dict, solver, fit_intercept, est_stderr,
-                       reg_method, alpha, l1_ratio, coef, stderr,
-                       tol, max_iter):
+                       tol, max_iter, reg_method, alpha, l1_ratio, coef, stderr):
         return cls(
             solver=solver, fit_intercept=fit_intercept, est_stderr=est_stderr,
             reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,
-            coef=coef, stderr=stderr,
-            tol=tol, max_iter=max_iter)
+            coef=coef, stderr=stderr, tol=tol, max_iter=max_iter)
 
     @classmethod
     def _from_json(cls, json_dict, solver, fit_intercept, est_stderr,
-                   reg_method, alpha, l1_ratio, coef, stderr):
+                   tol, max_iter, reg_method, alpha, l1_ratio, coef, stderr):
         return cls._from_json_MNL(
             json_dict,
             solver=solver, fit_intercept=fit_intercept, est_stderr=est_stderr,
             reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,
-            coef=coef, stderr=stderr,
-            tol=json_dict['properties']['tol'],
-            max_iter=json_dict['properties']['max_iter'])
+            coef=coef, stderr=stderr, tol=tol, max_iter=max_iter)
 
 
-class DiscreteMNL(MNL):
+class DiscreteMNL(BaseMNL):
     """
     A MNL for discrete data with input and output.
     """
@@ -920,7 +767,7 @@ class DiscreteMNL(MNL):
             classes=np.load(json_dict['properties']['classes']['path']))
 
 
-class CrossEntropyMNL(MNL):
+class CrossEntropyMNL(BaseMNL):
     """
     A MNL with probability response for data with input and output.
     """
@@ -949,10 +796,10 @@ class CrossEntropyMNL(MNL):
         if np.sum(sample_weight) < EPS:
             logging.warning('Sum of sample weight is 0, not fitting model')
             return
-        n_samples, n_targets = X.shape[0], Y.shape[1]
-        X_repeated = np.repeat(X, n_targets, axis=0)
-        Y_repeated = np.tile(np.arange(n_targets), n_samples)
-        sample_weight_repeated = Y.reshape(-1, ) * np.repeat(sample_weight, n_targets)
+        n_samples, n_classes = X.shape[0], Y.shape[1]
+        X_repeated = np.repeat(X, n_classes, axis=0)
+        Y_repeated = np.tile(np.arange(n_classes), n_samples)
+        sample_weight_repeated = Y.reshape(-1, ) * np.repeat(sample_weight, n_classes)
         return X_repeated, Y_repeated, sample_weight_repeated
 
     def _label_decoder(self, Y):
