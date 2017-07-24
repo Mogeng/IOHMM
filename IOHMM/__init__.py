@@ -14,12 +14,12 @@ from .linear_models import (GLM,
                             OLS,
                             DiscreteMNL,
                             CrossEntropyMNL)
-from .forwarding_family import (ForwardingBinomial,
-                                ForwardingGamma,
-                                ForwardingGaussian,
-                                ForwardingInverseGaussian,
-                                ForwardingNegativeBinomial,
-                                ForwardingPoisson)
+from .family_wrapper import (BinomialWrapper,
+                             GammaWrapper,
+                             GaussianWrapper,
+                             InverseGaussianWrapper,
+                             NegativeBinomialWrapper,
+                             PoissonWrapper)
 
 
 # Enumerate exports, to make the linter happy.
@@ -32,10 +32,10 @@ __all__ = [
     cal_log_gamma, cal_log_epsilon,
     cal_log_likelihood,
     GLM, OLS, DiscreteMNL, CrossEntropyMNL,
-    ForwardingBinomial,
-    ForwardingGamma,
-    ForwardingGaussian,
-    ForwardingInverseGaussian,
-    ForwardingNegativeBinomial,
-    ForwardingPoisson
+    BinomialWrapper,
+    GammaWrapper,
+    GaussianWrapper,
+    InverseGaussianWrapper,
+    NegativeBinomialWrapper,
+    PoissonWrapper
 ]

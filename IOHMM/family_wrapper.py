@@ -18,7 +18,7 @@ import statsmodels.genmod.families.links as L
 EPS = np.finfo(float).eps
 
 
-class ForwardingFamily(object):
+class FamilyWrapper(object):
     """
     The parent class for forwarding one-parameter exponential families,
     with function for per sample probability.
@@ -37,181 +37,6 @@ class ForwardingFamily(object):
 
     def __init__(self, link, variance):
         raise NotImplementedError
-
-    def starting_mu(self, y):
-        """
-        Starting value for mu in the IRLS algorithm.
-        Parameters
-        ----------
-        y : array
-            The untransformed response variable.
-        Returns
-        -------
-        mu_0 : array
-            The first guess on the transformed response variable.
-        Notes
-        -----
-        mu_0 = (endog + mean(endog))/2.
-        Notes
-        -----
-        Only the Binomial family takes a different initial value.
-        """
-        return self.family.starting_mu(y)
-
-    def weights(self, mu):
-        """
-        Weights for IRLS steps
-        Parameters
-        ----------
-        mu : array-like
-            The transformed mean response variable in the exponential family
-        Returns
-        -------
-        w : array
-            The weights for the IRLS steps
-        Notes
-        -----
-        `w` = 1 / (link'(`mu`)**2 * variance(`mu`))
-        """
-        return self.family.weights(mu=mu)
-
-    def deviance(self, endog, mu, freq_weights=1., scale=1.):
-        """
-        Deviance of (endog,mu) pair.
-        Deviance is usually defined as twice the loglikelihood ratio.
-        Parameters
-        ----------
-        endog : array-like
-            The endogenous response variable
-        mu : array-like
-            The inverse of the link function at the linear predicted values.
-        freq_weights : array-like
-            1d array of weights. The default is 1.
-        scale : float, optional
-            An optional scale argument
-        Returns
-        -------
-        Deviance : array
-            The value of deviance function defined below.
-        Notes
-        -----
-        Deviance is defined
-        .. math::
-           \sum_i(2 loglike(y_i, y_i) - 2 * loglike(y_i, mu_i)) / scale
-        where y is the endogenous variable. The deviance functions are
-        analytically defined for each family.
-        """
-        return self.family.deviance(endog, mu, freq_weights=freq_weights, scale=scale)
-
-    def resid_dev(self, endog, mu, scale=1.):
-        """
-        The deviance residuals
-        Parameters
-        ----------
-        endog : array
-            The endogenous response variable
-        mu : array
-            The inverse of the link function at the linear predicted values.
-        scale : float, optional
-            An optional argument to divide the residuals by scale
-        Returns
-        -------
-        Deviance residuals.
-        Notes
-        -----
-        The deviance residuals are defined for each family.
-        """
-        return self.family.resid_dev(endog, mu, scale=scale)
-
-    def fitted(self, lin_pred):
-        """
-        Fitted values based on linear predictors lin_pred.
-        Parameters
-        -----------
-        lin_pred : array
-            Values of the linear predictor of the model.
-            dot(X,beta) in a classical linear model.
-        Returns
-        --------
-        mu : array
-            The mean response variables given by the inverse of the link
-            function.
-        """
-        return self.family.fitted(lin_pred)
-
-    def predict(self, mu):
-        """
-        Linear predictors based on given mu values.
-        Parameters
-        ----------
-        mu : array
-            The mean response variables
-        Returns
-        -------
-        lin_pred : array
-            Linear predictors based on the mean response variables.  The value
-            of the link function at the given mu.
-        """
-        return self.family.predict(mu)
-
-    def loglike(self, endog, mu, freq_weights=1., scale=1.):
-        """
-        The log-likelihood function in terms of the fitted mean response.
-        Parameters
-        ----------
-        `endog` : array
-            Usually the endogenous response variable.
-        `mu` : array
-            Usually but not always the fitted mean response variable.
-        freq_weights : array-like
-            1d array of weights. The default is 1.
-        scale : float
-            The scale parameter
-        Returns
-        -------
-        llf : float
-            The value of the loglikelihood evaluated at (endog,mu).
-        Notes
-        -----
-        This is defined for each family.  endog and mu are not restricted to
-        `endog` and `mu` respectively.  For instance, the deviance function
-        calls both loglike(endog,endog) and loglike(endog,mu) to get the
-        likelihood ratio.
-        """
-        return np.sum(freq_weights * self.loglike_per_sample(endog, mu, scale=scale))
-
-    def resid_anscombe(self, endog, mu):
-        """
-        The Anscome residuals.
-
-        Parameters
-        ----------
-        endog : array
-            The endogenous response variable
-        mu : array
-            The inverse of the link function at the linear predicted values.
-        freq_weights : array-like
-            1d array of frequency weights. The default is 1.
-        scale : float, optional
-            An optional argument to divide the residuals by sqrt(scale).
-            The default is 1.
-
-        See also
-        --------
-        statsmodels.families.family.Family docstring and the `resid_anscombe`
-        for the individual families for more information.
-
-        Notes
-        -----
-        Anscombe residuals are defined by
-        .. math::
-           resid\_anscombe_i = \frac{A(y)-A(\mu)}{A'(\mu)\sqrt{Var[\mu]}}
-        where :math:`A'(y)=v(y)^{-\frac{1}{3}}` and :math:`v(\mu)` is the
-        variance function :math:`Var[y]=\frac{\phi}{w}v(mu)`.
-        The transformation :math:`A(y)` makes the residuals more normal
-        distributed.
-        """
-        return self.family.resid_anscombe(endog, mu)
 
     def loglike_per_sample(self, endog, mu, scale=1.):
         """
@@ -233,7 +58,7 @@ class ForwardingFamily(object):
         raise NotImplementedError
 
 
-class ForwardingPoisson(ForwardingFamily):
+class PoissonWrapper(FamilyWrapper):
     """
     Poisson exponential family with function for per sample probability.
     Parameters
@@ -286,7 +111,7 @@ class ForwardingPoisson(ForwardingFamily):
                 special.gammaln(endog + 1)).reshape(-1,)
 
 
-class ForwardingGaussian(ForwardingFamily):
+class GaussianWrapper(FamilyWrapper):
     """
     Gaussian exponential family distribution,
     with function for per sample probability.
@@ -337,11 +162,11 @@ class ForwardingGaussian(ForwardingFamily):
                     endog**2 / (2 * scale) - .5 * np.log(2 * np.pi * scale)).reshape(-1,)
         else:
             log_p = np.zeros(endog.shape[0])
-            log_p[endog != mu] = - np.Infinity
+            log_p[~np.isclose(endog, mu)] = - np.Infinity
             return log_p
 
 
-class ForwardingGamma(ForwardingFamily):
+class GammaWrapper(FamilyWrapper):
     """
     Gamma exponential family distribution.
     with function for per sample probability.
@@ -395,11 +220,11 @@ class ForwardingGamma(ForwardingFamily):
                       special.gammaln(1. / scale)) / scale).reshape(-1,)
         else:
             log_p = np.zeros(endog.shape[0])
-            log_p[endog != mu] = - np.Infinity
+            log_p[~np.isclose(endog, mu)] = - np.Infinity
             return log_p
 
 
-class ForwardingBinomial(ForwardingFamily):
+class BinomialWrapper(FamilyWrapper):
     """
     Binomial exponential family distribution.
     with function for per sample probability.
@@ -428,7 +253,6 @@ class ForwardingBinomial(ForwardingFamily):
         # TODO: it *should* work for a constant n>1 actually, if data_weights
         # is equal to n
         self.family = Binomial(link=link)
-        self.n = self.family.n
 
     def loglike_per_sample(self, endog, mu, scale=1.):
         """
@@ -460,20 +284,23 @@ class ForwardingBinomial(ForwardingFamily):
         defined in Binomial initialize.  This simply makes :math:`y_i` the
         original number of successes.
         """
-
-        if np.shape(self.n) == () and self.n == 1:
+        # special setup
+        # see _Setup_binomial(self) in generalized_linear_model.py
+        tmp = self.family.initialize(endog, 1)
+        endog = tmp[0]
+        if np.shape(self.family.n) == () and self.family.n == 1:
             return scale * (endog * np.log(mu / (1 - mu) + 1e-200) +
                             np.log(1 - mu)).reshape(-1,)
         else:
-            y = endog * self.n  # convert back to successes
-            return scale * (special.gammaln(self.n + 1) -
+            y = endog * self.family.n  # convert back to successes
+            return scale * (special.gammaln(self.family.n + 1) -
                             special.gammaln(y + 1) -
-                            special.gammaln(self.n - y + 1) + y *
-                            np.log(mu / (1 - mu)) + self.n *
+                            special.gammaln(self.family.n - y + 1) + y *
+                            np.log(mu / (1 - mu)) + self.family.n *
                             np.log(1 - mu)).reshape(-1,)
 
 
-class ForwardingInverseGaussian(ForwardingFamily):
+class InverseGaussianWrapper(FamilyWrapper):
     """
     InverseGaussian exponential family.
     with function for per sample probability.
@@ -529,11 +356,11 @@ class ForwardingInverseGaussian(ForwardingFamily):
                           np.log(scale * endog**3) + np.log(2 * np.pi)).reshape(-1,)
         else:
             log_p = np.zeros(endog.shape[0])
-            log_p[endog != mu] = - np.Infinity
+            log_p[~np.isclose(endog, mu)] = - np.Infinity
             return log_p
 
 
-class ForwardingNegativeBinomial(ForwardingFamily):
+class NegativeBinomialWrapper(FamilyWrapper):
     """
     Negative Binomial exponential family.
     with function for per sample probability.
@@ -565,7 +392,6 @@ class ForwardingNegativeBinomial(ForwardingFamily):
     def __init__(self, link=L.log, alpha=1.):
         # make it at least float
         self.family = NegativeBinomial(link=link, alpha=alpha)
-        self.alpha = self.family.alpha
 
     def loglike_per_sample(self, endog, mu, scale):
         """
@@ -597,14 +423,14 @@ class ForwardingNegativeBinomial(ForwardingFamily):
         """
         if scale > EPS:
             lin_pred = self.family._link(mu)
-            constant = (special.gammaln(endog + 1 / self.alpha) -
-                        special.gammaln(endog + 1) - special.gammaln(1 / self.alpha))
+            constant = (special.gammaln(endog + 1 / self.family.alpha) -
+                        special.gammaln(endog + 1) - special.gammaln(1 / self.family.alpha))
             exp_lin_pred = np.exp(lin_pred)
-            return (endog * np.log(self.alpha * exp_lin_pred /
-                                   (1 + self.alpha * exp_lin_pred)) -
-                    np.log(1 + self.alpha * exp_lin_pred) /
-                    self.alpha + constant).reshape(-1,)
+            return (endog * np.log(self.family.alpha * exp_lin_pred /
+                                   (1 + self.family.alpha * exp_lin_pred)) -
+                    np.log(1 + self.family.alpha * exp_lin_pred) /
+                    self.family.alpha + constant).reshape(-1,)
         else:
             log_p = np.zeros(endog.shape[0])
-            log_p[endog != mu] = - np.Infinity
+            log_p[~np.isclose(endog, mu)] = - np.Infinity
             return log_p
