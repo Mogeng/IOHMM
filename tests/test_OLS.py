@@ -77,7 +77,7 @@ class UnivariateOLSTests(unittest.TestCase):
             places=3)
 
         # to_json
-        json_dict = self.model.to_json('./tests/linear_models/ols/univariate_ols/')
+        json_dict = self.model.to_json('./tests/linear_models/OLS/UnivariateOLS/')
         self.assertEqual(json_dict['properties']['solver'], 'pinv')
 
         # from_json
@@ -345,7 +345,7 @@ class IndependentMultivariateOLSTests(unittest.TestCase):
             places=3)
 
         # to_json
-        json_dict = self.model.to_json('./tests/linear_models/ols/multivariate_ols/')
+        json_dict = self.model.to_json('./tests/linear_models/OLS/MultivariateOLS/')
         self.assertEqual(json_dict['properties']['solver'], 'pinv')
 
         # from_json

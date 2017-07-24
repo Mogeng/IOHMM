@@ -38,6 +38,7 @@ from sklearn import linear_model
 from sklearn.linear_model.base import _rescale_data
 from sklearn.preprocessing import label_binarize
 import statsmodels.api as sm
+from statsmodels.genmod.families import Poisson, Binomial
 from statsmodels.tools import add_constant
 
 EPS = np.finfo(float).eps
@@ -192,6 +193,7 @@ class BaseModel(object):
 class GLM(BaseModel):
     """
     A Generalized linear model for data with input and output.
+    fit_regularized only support Poisson and Binomial due to statsmodels.
     """
 
     def __init__(self,
@@ -226,7 +228,8 @@ class GLM(BaseModel):
         self.dispersion = dispersion
         if self.coef is not None:
             dummy_X = dummy_Y = dummy_weight = np.zeros(1)
-            self._model = sm.GLM(dummy_Y, dummy_X, family=self.family, freq_weights=dummy_weight)
+            self._model = sm.GLM(dummy_Y, dummy_X, family=self.family.family,
+                                 freq_weights=dummy_weight)
 
     def fit(self, X, Y, sample_weight=None):
         """
@@ -240,20 +243,24 @@ class GLM(BaseModel):
         def _estimate_dispersion():
             # this is different from the implementations from statsmodels,
             # that we do not consider dof
+            if isinstance(self.family.family, (Binomial, Poisson)):
+                return 1.
             return self._model.scale
 
         def _estimate_stderr():
-            # this is different from the implementations from statsmodels,
-            # that we do not consider dof
+            # I think the stderr of statsmodels is wrong
+            # it uses the WLS stderr as the std err of GLM, which does not make sense
+            # because the variance in WLS is inverse proportional to the weights
+            # Anyway I will leave it here, stderr is not important.
             if self.reg_method is None or self.alpha < EPS:
-                return fit_results.bse * np.sqrt(np.sum(sample_weight) / X.shape[0])
+                return fit_results.bse * np.sqrt(self.dispersion / self._model.scale)
             return None
 
         if self.fit_intercept:
             X = add_constant(X, has_constant='add')
         if Y.ndim == 2 and Y.shape[1] == 1:
             Y = Y.reshape(-1,)
-        assert Y.ndim == 1
+        # assert Y.ndim == 1
         if sample_weight is None:
             sample_weight = np.ones(X.shape[0])
         elif isinstance(sample_weight, numbers.Number):
@@ -261,8 +268,7 @@ class GLM(BaseModel):
         if np.sum(sample_weight) < EPS:
             logging.warning('Sum of sample weight is 0')
             return
-
-        self._model = sm.GLM(Y, X, family=self.family, freq_weights=sample_weight)
+        self._model = sm.GLM(Y, X, family=self.family.family, freq_weights=sample_weight)
         # dof in weighted regression does not make sense, hard code it to the total weights
         self._model.df_resid = np.sum(sample_weight)
         if self.reg_method is None or self.alpha < EPS:
@@ -304,7 +310,6 @@ class GLM(BaseModel):
             return None
         if Y.ndim == 2 and Y.shape[1] == 1:
             Y = Y.reshape(-1,)
-        assert Y.ndim == 1
         mu = self.predict(X)
         return self.family.loglike_per_sample(Y, mu, scale=self.dispersion)
 
