@@ -64,7 +64,7 @@ class BaseIOHMM(object):
     def set_data(self, dfs):
         raise NotImplementedError
 
-    def _initialize(self):
+    def _initialize(self, with_randomness=True):
         # initialize log_gammas
         def _initialize_log_gamma(df, log_state):
             log_gamma = np.log(np.zeros((df.shape[0], self.num_states)))
@@ -72,16 +72,29 @@ class BaseIOHMM(object):
                 log_gamma[k, :] = log_state[k]
             return log_gamma
 
+        def _initialize_log_epsilon(df, log_state):
+            log_epsilon = np.log(np.zeros((df.shape[0] - 1, self.num_states, self.num_states)))
+            for i in log_state:
+                if i + 1 in log_state:
+                    st = int(np.argmax(log_state[i]))
+                    log_epsilon[i, st, :] = log_state[i + 1]
+            return log_epsilon
+
+        # initialize log_gammas and log_epsilons
         self.log_gammas = [_initialize_log_gamma(df, log_state)
                            for df, log_state in self.dfs_logStates]
-        for st in range(self.num_states):
-            if np.exp(np.hstack([lg[:, st] for lg in self.log_gammas])).sum() < EPS:
-                for lg in self.log_gammas:
-                    lg[:, st] = np.random.rand(lg.shape[0])
 
-        # initialize log_epsilons
-        self.log_epsilons = [np.random.rand(df.shape[0] - 1, self.num_states, self.num_states) for
-                             df, log_state in self.dfs_logStates]
+        self.log_epsilons = [_initialize_log_epsilon(df, log_state)
+                             for df, log_state in self.dfs_logStates]
+        if with_randomness:
+            for st in range(self.num_states):
+                if np.exp(np.hstack([lg[:, st] for lg in self.log_gammas])).sum() < EPS:
+                    for lg in self.log_gammas:
+                        lg[:, st] = np.random.rand(lg.shape[0])
+            for st in range(self.num_states):
+                if np.exp(np.hstack([le[:, st, :] for le in self.log_epsilons])).sum() < EPS:
+                    for le in self.log_epsilons:
+                        le[:, st, :] = np.random.rand(le.shape[0], self.num_states)
 
         # initialize log_likelihood
         self.log_likelihood = -np.Infinity
@@ -137,10 +150,35 @@ class BaseIOHMM(object):
         self.log_likelihood = sum(self.log_likelihoods)
 
     def M_step(self):
-        raise NotImplementedError
+        # optimize initial model
+        X = self.inp_initials_all_users
+        Y = np.exp(np.vstack([lg[0, :].reshape(1, -1) for lg in self.log_gammas]))
+        self.model_initial.fit(X, Y)
+
+        # optimize transition models
+        X = self.inp_transitions_all_users
+        for st in range(self.num_states):
+            Y = np.exp(np.vstack([eps[:, st, :] for eps in self.log_epsilons]))
+            self.model_transition[st].fit(X, Y)
+
+        # optimize emission models
+        for emis in range(self.num_emissions):
+            X = self.inp_emissions_all_users[emis]
+            Y = self.out_emissions_all_users[emis]
+            for st in range(self.num_states):
+                sample_weight = np.exp(np.hstack([lg[:, st] for lg in self.log_gammas]))
+                # now need to add a tolist so that sklearn works fine
+                self.model_emissions[st][emis].fit(X, Y, sample_weight=sample_weight)
 
     def train(self):
-        raise NotImplementedError
+        for it in range(self.max_EM_iter):
+            log_likelihood_prev = self.log_likelihood
+            self.M_step()
+            self.E_step()
+            logging.info('log likelihood of iteration {0}: {1:.4f}'.format(it, self.log_likelihood))
+            if abs(self.log_likelihood - log_likelihood_prev) < self.EM_tol:
+                break
+        self.trained = True
 
     def to_json(self, path):
         json_dict = {
@@ -236,38 +274,7 @@ class UnSupervisedIOHMM(BaseIOHMM):
         assert all([df.shape[0] > 0 for df in dfs])
         self.num_seqs = len(dfs)
         self.dfs_logStates = map(lambda x: [x, {}], dfs)
-        self._initialize()
-
-    def M_step(self):
-        # optimize initial model
-        X = self.inp_initials_all_users
-        Y = np.exp(np.vstack([lg[0, :].reshape(1, -1) for lg in self.log_gammas]))
-        self.model_initial.fit(X, Y)
-
-        # optimize transition models
-        X = self.inp_transitions_all_users
-        for st in range(self.num_states):
-            Y = np.exp(np.vstack([eps[:, st, :] for eps in self.log_epsilons]))
-            self.model_transition[st].fit(X, Y)
-
-        # optimize emission models
-        for emis in range(self.num_emissions):
-            X = self.inp_emissions_all_users[emis]
-            Y = self.out_emissions_all_users[emis]
-            for st in range(self.num_states):
-                sample_weight = np.exp(np.hstack([lg[:, st] for lg in self.log_gammas]))
-                # now need to add a tolist so that sklearn works fine
-                self.model_emissions[st][emis].fit(X, Y, sample_weight=sample_weight)
-
-    def train(self):
-        for it in range(self.max_EM_iter):
-            log_likelihood_prev = self.log_likelihood
-            self.M_step()
-            self.E_step()
-            logging.info('log likelihood of iteration {0}: {1:.4f}'.format(it, self.log_likelihood))
-            if abs(self.log_likelihood - log_likelihood_prev) < self.EM_tol:
-                break
-        self.trained = True
+        self._initialize(with_randomness=True)
 
     def to_json(self, path):
         json_dict = super(UnSupervisedIOHMM, self).to_json(path)
@@ -304,138 +311,16 @@ class SemiSupervisedIOHMM(UnSupervisedIOHMM):
     def set_data(self, dfs_states):
         self.num_seqs = len(dfs_states)
         self.dfs_logStates = map(lambda x: [x[0], {k: np.log(x[1][k]) for k in x[1]}], dfs_states)
-        self._initialize()
+        self._initialize(with_randomness=True)
 
 
 class SupervisedIOHMM(BaseIOHMM):
-    # // TODO this is a redundant code as SemiSupervised IOHMM, don't know what to do
+    def __init__(self, num_states=2):
+        super(SupervisedIOHMM, self).__init__(num_states=num_states)
+        self.max_EM_iter = 1
+        self.EM_tol = 0
+
     def set_data(self, dfs_states):
         self.num_seqs = len(dfs_states)
         self.dfs_logStates = map(lambda x: [x[0], {k: np.log(x[1][k]) for k in x[1]}], dfs_states)
-        self._initialize()
-
-    def _initialize_labeled(self):
-        def _initialize_labeled_input_for_initial(df, log_state):
-            if 0 in log_state:
-                return np.array(
-                    df[self.covariates_initial].iloc[0]).reshape(1, -1).astype('float64')
-            else:
-                return np.empty((0, len(self.covariates_initial)), dtype=float)
-
-        def _initialize_labeled_output_for_initial(df, log_state):
-            if 0 in log_state:
-                return log_state[0].reshape(1, -1).astype('float64')
-            else:
-                return np.empty((0, self.num_states), dtype=float)
-
-        def _initialize_labeled_input_for_transition(df, log_state):
-            ind = {}
-            inp = {}
-            for i in range(self.num_states):
-                ind[i] = []
-            for i in log_state:
-                if i + 1 in log_state:
-                    st = int(np.argmax(log_state[i]))
-                    ind[st].append(i + 1)
-            for i in range(self.num_states):
-                inp[i] = np.array(df.iloc[ind[i]][self.covariates_transition]).astype('float64')
-            return inp
-
-        def _initialize_labeled_output_for_transition(df, log_state):
-            ind = {}
-            out = {}
-            for i in range(self.num_states):
-                ind[i] = []
-            for i in log_state:
-                if i + 1 in log_state:
-                    st = int(np.argmax(log_state[i]))
-                    ind[st].append(i + 1)
-            for i in range(self.num_states):
-                out[i] = [log_state[k].reshape(1, -1).astype('float64') for k in ind[i]]
-                if out[i] == []:
-                    out[i] = [np.empty((0, self.num_states), dtype=float)]
-            return out
-
-        def _initialize_labeled_input_output_for_emission(df, log_state, cov):
-            ind = {}
-            inp = {}
-            for i in range(self.num_states):
-                ind[i] = []
-            for i in log_state:
-                st = int(np.argmax(log_state[i]))
-                ind[st].append(i)
-            for i in range(self.num_states):
-                inp[i] = np.array(df.iloc[ind[i]][cov]).astype('float64')
-            return inp
-
-        inp_initials = [_initialize_labeled_input_for_initial(df, log_state)
-                        for df, log_state in self.dfs_logStates]
-        self.inp_initials_all_users_labeled = np.vstack(inp_initials)
-        out_initials = [_initialize_labeled_output_for_initial(df, log_state)
-                        for df, log_state in self.dfs_logStates]
-        self.out_initials_all_users_labeled = np.vstack(out_initials)
-
-        inp_transitions = [_initialize_labeled_input_for_transition(
-            df, log_state) for df, log_state in self.dfs_logStates]
-        self.inp_transitions_all_users_labeled = {i: np.vstack(
-            [x[i] for x in inp_transitions]) for i in range(self.num_states)}
-        out_transitions = [_initialize_labeled_output_for_transition(
-            df, log_state) for df, log_state in self.dfs_logStates]
-        self.out_transitions_all_users_labeled = {i: np.vstack(
-            [item for sublist in out_transitions for item in sublist[i]])
-            for i in range(self.num_states)}
-
-        inp_emissions = []
-        self.inp_emissions_all_users_labeled = []
-        for cov in self.covariates_emissions:
-            inp_emissions.append([_initialize_labeled_input_output_for_emission(
-                df, log_state, cov) for df, log_state in self.dfs_logStates])
-        for covs in inp_emissions:
-            self.inp_emissions_all_users_labeled.append(
-                {i: np.vstack([x[i] for x in covs]) for i in range(self.num_states)})
-
-        out_emissions = []
-        self.out_emissions_all_users_labeled = []
-        for res in self.responses_emissions:
-            out_emissions.append([_initialize_labeled_input_output_for_emission(
-                df, log_state, res) for df, log_state in self.dfs_logStates])
-        for ress in out_emissions:
-            self.out_emissions_all_users_labeled.append(
-                {i: np.vstack([x[i] for x in ress]) for i in range(self.num_states)})
-
-    def M_step(self):
-        # optimize initial model
-        X = self.inp_initials_all_users_labeled
-        Y = np.exp(self.out_initials_all_users_labeled)
-        if X.shape[0] == 0:
-            logging.error(('No initial activity is labeled, cannot perform supervised IOHMM,\
-                           try un/semi-supervised IOHMM.'))
-        else:
-            self.model_initial.fit(X, Y)
-
-        # optimize transition models
-        X = self.inp_transitions_all_users_labeled
-        for st in range(self.num_states):
-            Y = np.exp(self.out_transitions_all_users_labeled[st])
-            if X[st].shape[0] == 0:
-                logging.error(('No initial activity is labeled, cannot perform supervised IOHMM,\
-                           try un/semi-supervised IOHMM.'))
-            else:
-                self.model_transition[st].fit(X[st], Y)
-
-        # optimize emission models
-        # print self.log_gammas
-        # print np.exp(self.log_gammas)
-        for emis in range(self.num_emissions):
-            X = self.inp_emissions_all_users_labeled[emis]
-            Y = self.out_emissions_all_users_labeled[emis]
-            for st in range(self.num_states):
-                if X[st].shape[0] == 0:
-                    logging.error(('No initial activity is labeled, cannot perform supervised IOHMM,\
-                           try un/semi-supervised IOHMM.'))
-                else:
-                    self.model_emissions[st][emis].fit(X[st], Y[st])
-
-    def train(self):
-        self._initialize_labeled()
-        self.M_step()
+        self._initialize(with_randomness=False)
