@@ -1084,7 +1084,8 @@ class BinomialTests(unittest.TestCase):
             self.X[0:1, :], self.Y[0:1, ]), np.array([-3.565]), decimal=3)
         np.testing.assert_array_almost_equal(self.model.loglike_per_sample(
             np.array(self.X[0:1, :].tolist() * 6),
-            np.array([[452., 355.], [510., 235.], [422., 335.], [454., 355.], [452., 355.], [422., 355.]])),
+            np.array([[452., 355.], [510., 235.], [422., 335.],
+                      [454., 355.], [452., 355.], [422., 355.]])),
             np.array([-3.565, -27.641,  -3.545,  -3.568,  -3.565,  -4.004]), decimal=3)
 
     def test_ols_multicolinearty(self):
