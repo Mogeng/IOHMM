@@ -485,7 +485,7 @@ class GammaTests(unittest.TestCase):
         # coef
         self.assertEqual(self.model.coef.shape, (8, ))
         # scale
-        self.assertEqual(self.model.dispersion, 0)
+        self.assertAlmostEqual(self.model.dispersion, 0, places=6)
         # loglike_per_sample
         np.testing.assert_array_almost_equal(self.model.loglike_per_sample(
             self.X[0:1, :], self.Y[0:1, ]), np.array([0]), decimal=3)
