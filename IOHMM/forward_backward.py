@@ -222,7 +222,7 @@ def cal_log_epsilon(log_prob_transition, log_Ey, log_alpha, log_beta, log_likeli
     log_epsilon : array-like of shape (t-1, k, k)
         the log of the posterial probability of two consecutive timestamps.
         log_gamma_{t, i, j} is the posterial log of the probability of
-        being in state i at timestamp t and 
+        being in state i at timestamp t and
         being in state j at timestamp t+1.
         see https://en.wikipedia.org/wiki/Forward-backward_algorithm for details.
     """
