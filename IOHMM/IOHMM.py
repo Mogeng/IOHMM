@@ -8,7 +8,7 @@ import warnings
 import numpy as np
 
 
-from HMM_utils import cal_HMM
+from forward_backward import forward_backward
 from linear_models import (GLM, OLS, DiscreteMNL, CrossEntropyMNL)
 
 
@@ -142,7 +142,7 @@ class BaseIOHMM(object):
                     np.array(self.inp_emissions[seq][emis]).astype('float64'),
                     np.array(self.out_emissions[seq][emis])) for model in model_collection]).T
 
-            log_gamma, log_epsilon, log_likelihood = cal_HMM(
+            log_gamma, log_epsilon, log_likelihood = forward_backward(
                 log_prob_initial, log_prob_transition, log_Ey, self.dfs_logStates[seq][1])
             self.log_gammas.append(log_gamma)
             self.log_epsilons.append(log_epsilon)

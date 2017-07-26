@@ -97,12 +97,6 @@ class BaseModel(object):
         Y : response matrix
         sample_weight: sample weight vector
         """
-
-        def _estimate_dispersion(self):
-            raise NotImplementedError
-
-        def _estimate_stderr(self):
-            raise NotImplementedError
         raise NotImplementedError
 
     def predict(self, X):
@@ -545,9 +539,7 @@ class BaseMNL(BaseModel):
         self.classes = classes
         self.n_classes = n_classes
         if self.coef is not None:
-            if self.n_classes == 1:
-                pass
-            else:
+            if self.n_classes >= 2:
                 self._pick_model()
                 self._model.coef_ = coef
                 self._model.classes_ = classes
