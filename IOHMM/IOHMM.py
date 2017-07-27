@@ -167,7 +167,6 @@ class BaseIOHMM(object):
             Y = self.out_emissions_all_users[emis]
             for st in range(self.num_states):
                 sample_weight = np.exp(np.hstack([lg[:, st] for lg in self.log_gammas]))
-                # now need to add a tolist so that sklearn works fine
                 self.model_emissions[st][emis].fit(X, Y, sample_weight=sample_weight)
 
     def train(self):

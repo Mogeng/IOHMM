@@ -187,13 +187,7 @@ class PoissonTests(unittest.TestCase):
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
-        self.model.fit(self.X, self.Y, sample_weight=0)
-        # coefficient
-        self.assertTrue(self.model.coef is None)
-        # std.err of coefficient (calibrated by df_resid)
-        self.assertTrue(self.model.stderr is None)
-        # scale
-        self.assertTrue(self.model.dispersion is None)
+        self.assertRaises(ValueError, self.model.fit, self.X, self.Y, 0)
 
     def test_GLM_sample_weight_half_zero_half_one(self):
         self.model = GLM(
@@ -432,13 +426,7 @@ class GammaTests(unittest.TestCase):
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
-        self.model.fit(self.X, self.Y, sample_weight=0)
-        # coefficient
-        self.assertTrue(self.model.coef is None)
-        # std.err of coefficient (calibrated by df_resid)
-        self.assertTrue(self.model.stderr is None)
-        # scale
-        self.assertTrue(self.model.dispersion is None)
+        self.assertRaises(ValueError, self.model.fit, self.X, self.Y, 0)
 
     def test_GLM_sample_weight_half_zero_half_one(self):
         self.model = GLM(
@@ -668,13 +656,7 @@ class GaussianTests(unittest.TestCase):
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
-        self.model.fit(self.X, self.Y, sample_weight=0)
-        # coefficient
-        self.assertTrue(self.model.coef is None)
-        # std.err of coefficient (calibrated by df_resid)
-        self.assertTrue(self.model.stderr is None)
-        # scale
-        self.assertTrue(self.model.dispersion is None)
+        self.assertRaises(ValueError, self.model.fit, self.X, self.Y, 0)
 
     def test_GLM_sample_weight_half_zero_half_one(self):
         self.model = GLM(
@@ -1023,13 +1005,7 @@ class BinomialTests(unittest.TestCase):
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
-        self.model.fit(self.X, self.Y, sample_weight=0)
-        # coefficient
-        self.assertTrue(self.model.coef is None)
-        # std.err of coefficient (calibrated by df_resid)
-        self.assertTrue(self.model.stderr is None)
-        # scale
-        self.assertTrue(self.model.dispersion is None)
+        self.assertRaises(ValueError, self.model.fit, self.X, self.Y, 0)
 
     def test_GLM_sample_weight_half_zero_half_one(self):
         self.model = GLM(
@@ -1246,13 +1222,7 @@ class InverseGaussianTests(unittest.TestCase):
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
-        self.model.fit(self.X, self.Y, sample_weight=0)
-        # coefficient
-        self.assertTrue(self.model.coef is None)
-        # std.err of coefficient (calibrated by df_resid)
-        self.assertTrue(self.model.stderr is None)
-        # scale
-        self.assertTrue(self.model.dispersion is None)
+        self.assertRaises(ValueError, self.model.fit, self.X, self.Y, 0)
 
     def test_GLM_sample_weight_half_zero_half_one(self):
         self.model = GLM(
@@ -1484,13 +1454,7 @@ class NegativeBinomialTests(unittest.TestCase):
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
-        self.model.fit(self.X, self.Y, sample_weight=0)
-        # coefficient
-        self.assertTrue(self.model.coef is None)
-        # std.err of coefficient (calibrated by df_resid)
-        self.assertTrue(self.model.stderr is None)
-        # scale
-        self.assertTrue(self.model.dispersion is None)
+        self.assertRaises(ValueError, self.model.fit, self.X, self.Y, 0)
 
     def test_GLM_sample_weight_half_zero_half_one(self):
         self.model = GLM(
