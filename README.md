@@ -11,7 +11,7 @@ IOHMM extends standard HMM by allowing (a) initial, (b) transition and (c) emiss
 | <img width="300" src="./documents/HMM.png">  |  <img width="300" src="./documents/IOHMM.png">|
 
 
-The solid nodes represent observed information, while the transparent (white) nodes represent latent random variables. The top layer contains the **observed** input variables *__u<sub>t</sub>__*; the middle layer contains **latent** categorical variable *z<sub>t</sub>*; and the bottom layer contains observed output variables *__x<sub>t</sub>__*. The input for (a) initial, (b) transition and (c) emission probabilities does not have to be the same.
+The solid nodes represent observed information, while the transparent (white) nodes represent latent random variables. The top layer contains the **observed** input variables *__u<sub>t</sub>__*; the middle layer contains **latent** categorical variable *z<sub>t</sub>*; and the bottom layer contains **observed** output variables *__x<sub>t</sub>__*. The input for (a) initial, (b) transition and (c) emission probabilities does not have to be the same.
 
 For more theoretical details:
 * [An Input Output HMM Architecture](https://papers.nips.cc/paper/964-an-input-output-hmm-architecture.pdf)
