@@ -5,11 +5,12 @@ A Python package of Input-Output Hidden Markov Model (IOHMM).
 [![Build Status](https://travis-ci.org/Mogeng/IOHMM.svg?branch=master)](https://travis-ci.org/Mogeng/IOHMM) [![Coverage Status](https://coveralls.io/repos/github/Mogeng/IOHMM/badge.svg)](https://coveralls.io/github/Mogeng/IOHMM)
 
 IOHMM extends standard HMM by allowing (a) initial, (b) transition and (c) emission probabilities to depend on various covariates. A graphical representation of  standard HMM and IOHMM:
-A | B
-- | - 
-![](/documents/HMM.pdf)  |  ![](/documents/IOHMM.pdf)
 
-The solid nodes represent observed information, while the transparent (white) nodes represent latent random variables. The top layer contains the **observed** input variables ***u<sub>t</sub>***; the middle layer contains **latent** categorical variable *z<sub>t</sub>*; and the bottom layer contains observed output variables ***x<sub>t</sub>***. The input for (a) initial, (b) transition and (c) emission probabilities does not have to be the same.
+Standard HMM | IOHMM
+- | - 
+<img width="300" src="./documents/HMM.png">  |  <img width="300" src="./documents/IOHMM.png">
+
+The solid nodes represent observed information, while the transparent (white) nodes represent latent random variables. The top layer contains the **observed** input variables *__u<sub>t</sub>__*; the middle layer contains **latent** categorical variable *z<sub>t</sub>*; and the bottom layer contains observed output variables *__x<sub>t</sub>__*. The input for (a) initial, (b) transition and (c) emission probabilities does not have to be the same.
 
 For more theoretical details:
 * [An Input Output HMM Architecture](https://papers.nips.cc/paper/964-an-input-output-hmm-architecture.pdf)
