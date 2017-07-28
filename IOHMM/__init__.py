@@ -1,15 +1,12 @@
 from .IOHMM import (UnSupervisedIOHMM,
                     SemiSupervisedIOHMM,
                     SupervisedIOHMM)
-#                     UnSupervisedIOHMMMapReduce,
-#                     SemiSupervisedIOHMMMapReduce,
-#                     SupervisedIOHMMMapReduce)
-from .HMM_utils import (cal_HMM,
-                        cal_log_alpha,
-                        cal_log_beta,
-                        cal_log_gamma,
-                        cal_log_epsilon,
-                        cal_log_likelihood)
+from .forward_backward import (forward_backward,
+                               forward,
+                               backward,
+                               cal_log_gamma,
+                               cal_log_epsilon,
+                               cal_log_likelihood)
 from .linear_models import (GLM,
                             OLS,
                             DiscreteMNL,
@@ -21,14 +18,9 @@ from .family_wrapper import (BinomialWrapper,
                              NegativeBinomialWrapper,
                              PoissonWrapper)
 
-
-# Enumerate exports, to make the linter happy.
 __all__ = [
     UnSupervisedIOHMM, SemiSupervisedIOHMM, SupervisedIOHMM,
-    # UnSupervisedIOHMMMapReduce,
-    # SemiSupervisedIOHMMMapReduce,
-    # SupervisedIOHMMMapReduce,
-    cal_HMM, cal_log_alpha, cal_log_beta,
+    forward_backward, forward, backward,
     cal_log_gamma, cal_log_epsilon,
     cal_log_likelihood,
     GLM, OLS, DiscreteMNL, CrossEntropyMNL,

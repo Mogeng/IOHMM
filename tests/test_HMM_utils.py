@@ -2,7 +2,7 @@ import unittest
 
 import numpy as np
 
-from IOHMM import (cal_log_alpha, cal_log_beta, cal_HMM)
+from IOHMM import (forward, backward, forward_backward)
 
 
 class HMMUtilsTests(unittest.TestCase):
@@ -31,7 +31,7 @@ class HMMUtilsTests(unittest.TestCase):
 
     def test_cal_alpha_beta(self):
         # forward algorithm
-        log_alpha = cal_log_alpha(self.log_prob_initial, self.log_prob_transition, self.log_Ey, {})
+        log_alpha = forward(self.log_prob_initial, self.log_prob_transition, self.log_Ey, {})
         np.testing.assert_array_almost_equal(
             np.exp(log_alpha),
             np.array([[1.20000000e-01, 2.10000000e-01, 1.50000000e-01],
@@ -48,7 +48,7 @@ class HMMUtilsTests(unittest.TestCase):
                       [7.09283841e-05, 1.14465462e-04, 6.44789697e-05]]),
             decimal=2)
         # backward algorithm
-        log_beta = cal_log_beta(self.log_prob_transition, self.log_Ey, {})
+        log_beta = backward(self.log_prob_transition, self.log_Ey, {})
         np.testing.assert_array_almost_equal(
             np.exp(log_beta),
             np.array([[4.66170742e-04, 5.55151324e-04, 5.15670321e-04],
@@ -65,8 +65,8 @@ class HMMUtilsTests(unittest.TestCase):
                       [1.00000000e+00, 1.00000000e+00, 1.00000000e+00]]),
             decimal=2)
 
-    def test_cal_hmm(self):
-        log_gamma, log_epsilon, log_likelihood = cal_HMM(
+    def test_forward_backward(self):
+        log_gamma, log_epsilon, log_likelihood = forward_backward(
             self.log_prob_initial, self.log_prob_transition, self.log_Ey, {})
         # likelihood
         self.assertAlmostEqual(np.exp(log_likelihood), 0.000249872815287, places=6)

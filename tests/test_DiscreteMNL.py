@@ -164,10 +164,8 @@ class DiscreteMNLBinaryTests(unittest.TestCase):
             solver='lbfgs', fit_intercept=True, est_stderr=True,
             reg_method='l2',  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None, classes=None)
-        self.model.fit(self.data_spector.exog, self.data_spector.endog, sample_weight=0)
-        # coefficient
-        self.assertTrue(self.model.coef is None)
-        self.assertTrue(self.model.loglike(self.data_spector.exog, self.data_spector.endog) is None)
+        self.assertRaises(ValueError, self.model.fit,
+                          self.data_spector.exog, self.data_spector.endog, 0)
 
     def test_lr_sample_weight_half_zero_half_one(self):
         self.model = DiscreteMNL(
@@ -342,10 +340,8 @@ class DiscreteMNLMultinomialTests(unittest.TestCase):
             solver='lbfgs', fit_intercept=True, est_stderr=True,
             reg_method='l2',  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None, classes=None)
-        self.model.fit(self.data_anes96.exog, self.data_anes96.endog, sample_weight=0)
-        # coefficient
-        self.assertTrue(self.model.coef is None)
-        self.assertTrue(self.model.loglike(self.data_anes96.exog, self.data_anes96.endog) is None)
+        self.assertRaises(ValueError, self.model.fit,
+                          self.data_anes96.exog, self.data_anes96.endog, 0)
 
     def test_lr_sample_weight_half_zero_half_one(self):
         self.model = DiscreteMNL(

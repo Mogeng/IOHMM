@@ -20,7 +20,7 @@ class CrossEntropyMNLUnaryTests(unittest.TestCase):
         x = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
         y = np.array([[1], [1], [1]])
         X_repeated, Y_repeated, sample_weight_repeated = \
-            CrossEntropyMNL._label_encoder(x, y)
+            CrossEntropyMNL._label_encoder(x, y, np.ones(3))
         np.testing.assert_array_equal(X_repeated, x)
         np.testing.assert_array_equal(
             Y_repeated, np.array([0, 0, 0]))
@@ -255,10 +255,8 @@ class CrossEntropyMNLBinaryTests(unittest.TestCase):
             solver='lbfgs', fit_intercept=True, est_stderr=True,
             reg_method='l2',  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None, n_classes=None)
-        self.model.fit(self.data_spector.exog, self.y, sample_weight=0)
-        # coefficient
-        self.assertTrue(self.model.coef is None)
-        self.assertTrue(self.model.loglike(self.data_spector.exog, self.y) is None)
+        self.assertRaises(ValueError, self.model.fit,
+                          self.data_spector.exog, self.y, 0)
 
     def test_lr_sample_weight_half_zero_half_one(self):
         self.model = CrossEntropyMNL(
@@ -414,7 +412,7 @@ class CrossEntropyMNLMultinomialTests(unittest.TestCase):
         x = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
         y = np.array([[1, 0, 0], [0, 1, 0], [0, 0, 1]])
         X_repeated, Y_repeated, sample_weight_repeated = \
-            CrossEntropyMNL._label_encoder(x, y)
+            CrossEntropyMNL._label_encoder(x, y, np.ones(3))
         np.testing.assert_array_equal(
             X_repeated,
             np.array([
@@ -576,10 +574,8 @@ class CrossEntropyMNLMultinomialTests(unittest.TestCase):
             solver='lbfgs', fit_intercept=True, est_stderr=True,
             reg_method='l2',  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None, classes=None)
-        self.model.fit(self.data_anes96.exog, self.y_disturbed, sample_weight=0)
-        # coefficient
-        self.assertTrue(self.model.coef is None)
-        self.assertTrue(self.model.loglike(self.data_anes96.exog, self.y_disturbed) is None)
+        self.assertRaises(ValueError, self.model.fit,
+                          self.data_anes96.exog, self.y_disturbed, 0)
 
     def test_lr_sample_weight_half_zero_half_one(self):
         self.model = CrossEntropyMNL(

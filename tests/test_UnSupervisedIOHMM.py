@@ -90,11 +90,11 @@ class UnSupervisedIOHMMTests(unittest.TestCase):
         # transition
         np.testing.assert_array_almost_equal(
             np.exp(self.model.model_transition[0].predict_log_proba(
-                self.model.inp_transitions_all_users)).sum(axis=0),
+                self.model.inp_transitions_all_sequences)).sum(axis=0),
             np.array([312, 126]), decimal=0)
         np.testing.assert_array_almost_equal(
             np.exp(self.model.model_transition[1].predict_log_proba(
-                self.model.inp_transitions_all_users)).sum(axis=0),
+                self.model.inp_transitions_all_sequences)).sum(axis=0),
             np.array([112, 326]), decimal=0)
 
     def test_train_multivariate(self):
@@ -128,11 +128,11 @@ class UnSupervisedIOHMMTests(unittest.TestCase):
         # transition
         np.testing.assert_array_almost_equal(
             np.exp(self.model.model_transition[0].predict_log_proba(
-                self.model.inp_transitions_all_users)).sum(axis=0),
+                self.model.inp_transitions_all_sequences)).sum(axis=0),
             np.array([387, 51]), decimal=0)
         np.testing.assert_array_almost_equal(
             np.exp(self.model.model_transition[1].predict_log_proba(
-                self.model.inp_transitions_all_users)).sum(axis=0),
+                self.model.inp_transitions_all_sequences)).sum(axis=0),
             np.array([37, 401.]), decimal=0)
 
         # to_json
@@ -170,11 +170,11 @@ class UnSupervisedIOHMMTests(unittest.TestCase):
         self.model.set_data([self.data_speed])
         np.testing.assert_array_almost_equal(
             np.exp(self.model.model_transition[0].predict_log_proba(
-                self.model.inp_transitions_all_users)).sum(axis=0),
+                self.model.inp_transitions_all_sequences)).sum(axis=0),
             np.array([387, 51]), decimal=0)
         np.testing.assert_array_almost_equal(
             np.exp(self.model.model_transition[1].predict_log_proba(
-                self.model.inp_transitions_all_users)).sum(axis=0),
+                self.model.inp_transitions_all_sequences)).sum(axis=0),
             np.array([37, 401.]), decimal=0)
 
     def test_from_config(self):
@@ -227,9 +227,9 @@ class UnSupervisedIOHMMTests(unittest.TestCase):
         self.model.set_data([self.data_speed])
         np.testing.assert_array_almost_equal(
             np.exp(self.model.model_transition[0].predict_log_proba(
-                self.model.inp_transitions_all_users)).sum(axis=0),
+                self.model.inp_transitions_all_sequences)).sum(axis=0),
             np.array([387, 51]), decimal=0)
         np.testing.assert_array_almost_equal(
             np.exp(self.model.model_transition[1].predict_log_proba(
-                self.model.inp_transitions_all_users)).sum(axis=0),
+                self.model.inp_transitions_all_sequences)).sum(axis=0),
             np.array([37, 401.]), decimal=0)

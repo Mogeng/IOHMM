@@ -1,27 +1,41 @@
 '''
-This is a unified interface of general/generalized linear models from
-sklearn/statsmodels packages
+This is a unified interface/wrapper of general/generalized linear models from
+sklearn/statsmodels packages.
 
 Problems with sklearn:
-1. No Generalized linear models available
-2. Does not estimate standard deviation
+1. No Generalized linear models available.
+2. Does not estimate standard error of coefficients.
+3. Logistic regression does not handle 1 class case.
+4. For 2 class logistic regression, the 'ovr' result is not same as 'multinomial' result.
 
 Problems with statsmodels:
-1. No working version of multivariate OLS with sample weights
-2. MNLogit does not have sample weights
+1. No working version of multivariate OLS with sample weights.
+2. MNLogit does not support sample weights.
+
+Problem with both:
+1. No interface to calculate loglike_per_sample,
+   which is need to calculate emission probability in IOHMM.
+2. No json-serialization.
+
 
 In this implementations,
 we will mainly use statsmodels for
 1. Generalized linear models with simple response
-2. OLS (statsmodels 0.8.0 deprecated fit_regularized for WLS but I expect it to be back soon)
 
 we will mainly use sklearn for
-1. Multivariate OLS
+1. Univariate/Multivariate Ordinary least square (OLS) models,
 2. Multinomial Logistic Regression with discrete output/probability outputs
 
+Note:
+1. If using customized arguments for constructor, you may encounter compalints
+   from the statsmodels/sklearn on imcompatible arguments.
+   This maybe especially true for the compatibility between solver and regularization method.
+
+2. For the GLM, statsmodels is not great when fitting with regularizations
+   (espicially l1, and elstic_net). In this case the coefficients might be np.nan.
+   Try not using regularizations if you select GLM until statsmodels is stable on this.
 '''
 
-# //TODO check sum(sample_weight > 0)? Is it wrong to have the sample weight equal to zero?
 # //TODO in future add arguments compatibility check
 
 from __future__ import division
@@ -65,12 +79,13 @@ class BaseModel(object):
         Constructor
         Parameters
         ----------
-        solver: family specific solver
+        solver: specific solver for each linear model
         fit_intercept: boolean indicating fit intercept or not
         est_stderr: boolean indicating calculte std.err of coefficients (usually expensive) or not
         tol: tolerence of fitting error
         max_iter: maximum iteraration of fitting
-        reg_method: method to regularize the model, one of (None, elstic_net)
+        reg_method: method to regularize the model, one of (None, l1, l2, elstic_net).
+                    Need to be compatible with the solver.
         alpha: regularization strength
         l1_ratio: if elastic_net, the l1 alpha ratio
         coef: the coefficients if loading from trained model
@@ -90,52 +105,131 @@ class BaseModel(object):
 
     def fit(self, X, Y, sample_weight=None):
         """
-        fit the weighted model
+        Fit the weighted model
         Parameters
         ----------
-        X : design matrix, must be n*k, 2d
-        Y : response matrix
-        sample_weight: sample weight vector
+        X : design matrix of shape (n_samples, n_features), 2d
+        Y : observed response matrix of shape
+            (n_samples, ) or (n_samples, k) based on specific model
+        sample_weight: sample weight vector of shape (n_samples, ), or float, or None
         """
-
-        def _estimate_dispersion(self):
-            raise NotImplementedError
-
-        def _estimate_stderr(self):
-            raise NotImplementedError
         raise NotImplementedError
 
-    def predict(self, X):
+    def _raise_error_if_model_not_trained(self):
         """
-        predict the Y value based on the model
+        Raise error if the model is not trained (thus has coef)
         ----------
-        X : design matrix
+        """
+        if self.coef is None:
+            raise ValueError('Model is not trained.')
+
+    def _raise_error_if_sample_weight_sum_zero(self, sample_weight):
+        """
+        Raise error if the sum of sample_weight is 0
+        ----------
+        sample_weight: array of (n_samples, )
+        """
+        if np.sum(sample_weight) < EPS:
+            raise ValueError('Sum of sample weight is 0.')
+
+    def _transform_X(self, X):
+        """
+        Transform the design matrix X
+        ----------
+        X : design matrix of shape (n_samples, n_features), 2d
         Returns
         -------
-        predicted value
+        X : design matrix of shape (n_samples, n_features + 1) if fit intercept
         """
-        return NotImplementedError
+        if self.fit_intercept:
+            X = add_constant(X, has_constant='add')
+        return X
 
-    def loglike_per_sample(self, X, Y):
+    def _transform_sample_weight(self, X, sample_weight=None):
         """
-        Given a set of X and Y, calculate the log probability of
-        observing each of Y value given each X value
-
-        should return a vector
+        Transform the sample weight from anyform to array
+        ----------
+        X : design matrix of shape (n_samples, n_features), 2d
+        sample_weight: sample weight vector of shape (n_samples, ), or float, or None
+        Returns
+        -------
+        sample_weight: array of (n_samples, )
         """
-        return NotImplementedError
-
-    def loglike(self, X, Y, sample_weight=None):
-        if self.coef is None:
-            logging.warning('No trained model, cannot calculate loglike.')
-            return None
         if sample_weight is None:
             sample_weight = np.ones(X.shape[0])
         elif isinstance(sample_weight, numbers.Number):
             sample_weight = np.ones(X.shape[0]) * sample_weight
+        assert X.shape[0] == sample_weight.shape[0]
+        return sample_weight
+
+    def _transform_X_sample_weight(self, X, sample_weight=None):
+        """
+        Transform the design matrix X and sample_weight to the form they can be used to fit
+        ----------
+        X : design matrix of shape (n_samples, n_features), 2d
+        sample_weight: sample weight vector of shape (n_samples, ), or float, or None
+        Returns
+        -------
+        X : design matrix of shape (n_samples, n_features + 1) if fit intercept
+        sample_weight: array of (n_samples, )
+        """
+        X = self._transform_X(X)
+        sample_weight = self._transform_sample_weight(X, sample_weight=sample_weight)
+        return X, sample_weight
+
+    def predict(self, X):
+        """
+        Predict the Y value based on the model
+        ----------
+        X : design matrix of shape (n_samples, n_features), 2d
+        Returns
+        -------
+        predicted value: of shape (n_samples, ) or (n_samples, k) based on specific model
+        """
+        raise NotImplementedError
+
+    def loglike_per_sample(self, X, Y):
+        """
+        Given a set of X and Y, calculate the log probability of
+        observing each of Y_i value given each X_i value
+        Parameters
+        ----------
+        X : design matrix of shape (n_samples, n_features), 2d
+        Y : observed response matrix of shape
+            (n_samples, ) or (n_samples, k) based on specific model
+        Returns
+        -------
+        log_p: array of shape (n_samples, )
+        """
+        raise NotImplementedError
+
+    def loglike(self, X, Y, sample_weight=None):
+        """
+        Given a set of X and Y, calculate the log probability of
+        observing Y, considering the sample weight.
+        Parameters
+        ----------
+        X : design matrix of shape (n_samples, n_features), 2d
+        Y : observed response matrix of shape
+            (n_samples, ) or (n_samples, k) based on specific model
+        Returns
+        -------
+        log_likelihood: float
+        """
+        self._raise_error_if_model_not_trained()
+        sample_weight = self._transform_sample_weight(X, sample_weight=sample_weight)
         return np.sum(sample_weight * self.loglike_per_sample(X, Y))
 
     def to_json(self, path):
+        """
+        Generate json object of the model
+        Parameters
+        ----------
+        path : the path to save the model
+        Returns
+        -------
+        json_dict: a dictionary containing the attributes of the model
+        """
         json_dict = {
             'data_type': self.__class__.__name__,
             'properties': {
@@ -168,6 +262,26 @@ class BaseModel(object):
     @classmethod
     def _from_json(cls, json_dict, solver, fit_intercept, est_stderr,
                    tol, max_iter, reg_method, alpha, l1_ratio, coef, stderr):
+        """
+        Helper function to construct the linear model used by from_json.
+        This function is designed to be override by subclasses.
+        Parameters
+        ----------
+        json_dict : the dictionary that specifies the model
+        solver: specific solver for each linear model
+        fit_intercept: boolean indicating fit intercept or not
+        est_stderr: boolean indicating calculte std.err of coefficients (usually expensive) or not
+        tol: tolerence of fitting error
+        max_iter: maximum iteraration of fitting
+        reg_method: method to regularize the model, one of (None, l1, l2, elstic_net).
+        alpha: regularization strength
+        l1_ratio: if elastic_net, the l1 alpha ratio
+        coef: the coefficients
+        stderr: the std.err of coefficients
+        Returns
+        -------
+        linear model object: a linear model object specified by the json_dict and other arguments
+        """
         return cls(
             solver=solver, fit_intercept=fit_intercept, est_stderr=est_stderr,
             tol=tol, max_iter=max_iter,
@@ -176,6 +290,16 @@ class BaseModel(object):
 
     @classmethod
     def from_json(cls, json_dict):
+        """
+        Construct a linear model from a saved dictionary.
+        This function is NOT designed to be override by subclasses.
+        Parameters
+        ----------
+        json_dict: a json dictionary containing the attributes of the linear model.
+        Returns
+        -------
+        linear model: a linear model object specified by the json_dict
+        """
         return cls._from_json(
             json_dict,
             solver=json_dict['properties']['solver'],
@@ -192,8 +316,9 @@ class BaseModel(object):
 
 class GLM(BaseModel):
     """
-    A Generalized linear model for data with input and output.
-    fit_regularized only support Poisson and Binomial due to statsmodels.
+    A wrapper for Generalized linear models.
+    fit_regularized only support Poisson and Binomial due to statsmodels,
+    and it is not stable. Try not using regularizations in GLM.
     """
 
     def __init__(self,
@@ -213,9 +338,20 @@ class GLM(BaseModel):
         Constructor
         Parameters
         ----------
-        family: family in the forwarding_family
-        tol: tol in the optimization procedure
-        max_iter: max_iter in the optimization procedure
+        solver: solver for GLM, default 'IRLS', otherwise will use gradient.
+        fit_intercept: boolean indicating fit intercept or not
+        est_stderr: boolean indicating calculte std.err of coefficients (usually expensive) or not
+        tol: tolerence of fitting error
+        max_iter: maximum iteraration of fitting
+        reg_method: TRY NOT USING REGULARIZATIONS FOR GLM.
+                    method to regularize the model, one of (None, elstic_net).
+                    Need to be compatible with the solver.
+        alpha: regularization strength
+        l1_ratio: if elastic_net, the l1 alpha ratio
+        coef: the coefficients if loading from trained model
+        stderr: the std.err of coefficients if loading from trained model
+
+        family: GLM family in the family_wrapper
         dispersion: dispersion/scale of the GLM
         -------
         """
@@ -233,41 +369,45 @@ class GLM(BaseModel):
 
     def fit(self, X, Y, sample_weight=None):
         """
-        fit the weighted model
+        Fit the weighted model
         Parameters
         ----------
-        X : design matrix
-        Y : response matrix
-        sample_weight: sample weight vector
+        X : design matrix of shape (n_samples, n_features), 2d
+        Y : response matrix of shape (n_samples, ) or (n_samples, k) depending on family
+        sample_weight: sample weight vector of shape (n_samples, ), or float, or None
         """
         def _estimate_dispersion():
-            # this is different from the implementations from statsmodels,
-            # that we do not consider dof
+            """
+            Estimate dispersion/scale based on the fitted model
+            Returns
+            -------
+            dispersion: float
+            """
             if isinstance(self.family.family, (Binomial, Poisson)):
                 return 1.
             return self._model.scale
 
         def _estimate_stderr():
-            # I think the stderr of statsmodels is wrong
-            # it uses the WLS stderr as the std err of GLM, which does not make sense
-            # because the variance in WLS is inverse proportional to the weights
-            # Anyway I will leave it here, stderr is not important.
+            """
+            Estimate standard deviation of the coefficients.
+            Returns
+            -------
+            standard deviation of the coefficients: array with the same shape as coef
+            Notes
+            -------
+            I think the stderr of statsmodels is wrong.
+            It uses the WLS stderr as the std err of GLM, which does not make sense,
+            because the variance in WLS is inverse proportional to the weights.
+
+            Anyway I will leave it here, stderr is not important.
+            """
             if self.reg_method is None or self.alpha < EPS:
                 return fit_results.bse * np.sqrt(self.dispersion / self._model.scale)
             return None
 
-        if self.fit_intercept:
-            X = add_constant(X, has_constant='add')
-        if Y.ndim == 2 and Y.shape[1] == 1:
-            Y = Y.reshape(-1,)
-        # assert Y.ndim == 1
-        if sample_weight is None:
-            sample_weight = np.ones(X.shape[0])
-        elif isinstance(sample_weight, numbers.Number):
-            sample_weight = np.ones(X.shape[0]) * sample_weight
-        if np.sum(sample_weight) < EPS:
-            logging.warning('Sum of sample weight is 0')
-            return
+        X, sample_weight = self._transform_X_sample_weight(X, sample_weight=sample_weight)
+        self._raise_error_if_sample_weight_sum_zero(sample_weight)
+        Y = self._transform_Y(Y)
         self._model = sm.GLM(Y, X, family=self.family.family, freq_weights=sample_weight)
         # dof in weighted regression does not make sense, hard code it to the total weights
         self._model.df_resid = np.sum(sample_weight)
@@ -283,37 +423,60 @@ class GLM(BaseModel):
         if self.est_stderr:
             self.stderr = _estimate_stderr()
 
-    def predict(self, X):
+    def _transform_Y(self, Y):
         """
-        predict the Y value based on the model
+        Transform the response Y
         ----------
-        X : design matrix
+        Y : response matrix of shape (n_samples, ) or (n_samples, k) depending on family
         Returns
         -------
-        predicted value
+        Y : response matrix of shape (n_samples, ) or (n_samples, k) depending on family
         """
-        if self.coef is None:
-            logging.warning('No trained model, cannot predict.')
-            return None
-        if self.fit_intercept:
-            X = add_constant(X, has_constant='add')
+        if Y.ndim == 2 and Y.shape[1] == 1:
+            Y = Y.reshape(-1,)
+        return Y
+
+    def predict(self, X):
+        """
+        Predict the Y value based on the model
+        ----------
+        X : design matrix of shape (n_samples, n_features), 2d
+        Returns
+        -------
+        predicted value, of shape (n_samples, ), 1d
+        """
+        self._raise_error_if_model_not_trained()
+        X = self._transform_X(X)
         return self._model.predict(self.coef, exog=X)
 
     def loglike_per_sample(self, X, Y):
         """
-        Given a set of X and Y, calculate the probability of
-        observing Y value
+        Given a set of X and Y, calculate the log probability of
+        observing each of Y value given each X value
+        Parameters
+        ----------
+        X : design matrix of shape (n_samples, n_features), 2d
+        Y : response matrix of shape (n_samples, ) or (n_samples, k) depending on family
+        Returns
+        -------
+        log_p: array of shape (n_samples, )
         """
+        self._raise_error_if_model_not_trained()
         assert X.shape[0] == Y.shape[0]
-        if self.coef is None:
-            logging.warning('No trained model, cannot calculate loglike.')
-            return None
-        if Y.ndim == 2 and Y.shape[1] == 1:
-            Y = Y.reshape(-1,)
+        Y = self._transform_Y(Y)
         mu = self.predict(X)
         return self.family.loglike_per_sample(Y, mu, scale=self.dispersion)
 
     def to_json(self, path):
+        """
+        Generate json object of the model
+        Parameters
+        ----------
+        path : the path to save the model
+        Returns
+        -------
+        json_dict: a dictionary containing the attributes of the GLM
+        """
         json_dict = super(GLM, self).to_json(path=path)
         json_dict['properties'].update(
             {
@@ -337,6 +500,26 @@ class GLM(BaseModel):
     @classmethod
     def _from_json(cls, json_dict, solver, fit_intercept, est_stderr,
                    tol, max_iter, reg_method, alpha, l1_ratio, coef, stderr):
+        """
+        Helper function to construct the GLM used by from_json.
+        This function overrides the parent class.
+        Parameters
+        ----------
+        json_dict : the dictionary that specifies the model
+        solver: specific solver for GLM
+        fit_intercept: boolean indicating fit intercept or not
+        est_stderr: boolean indicating calculte std.err of coefficients (usually expensive) or not
+        tol: tolerence of fitting error
+        max_iter: maximum iteraration of fitting
+        reg_method: method to regularize the model, one of (None, elstic_net).
+        alpha: regularization strength
+        l1_ratio: if elastic_net, the l1 alpha ratio
+        coef: the coefficients
+        stderr: the std.err of coefficients
+        Returns
+        -------
+        GLM object: a GLM object specified by the json_dict and other arguments
+        """
         return cls(
             solver=solver, fit_intercept=fit_intercept, est_stderr=est_stderr,
             reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,
@@ -347,12 +530,33 @@ class GLM(BaseModel):
 
 class OLS(BaseModel):
     """
-    A linear model for data with input and output.
+    A wrapper for Univariate and Multivariate Ordinary Least Squares (OLS).
     """
 
     def __init__(self, solver='svd', fit_intercept=True, est_stderr=False,
                  reg_method=None,  alpha=0, l1_ratio=0, tol=1e-4, max_iter=100,
                  coef=None, stderr=None,  dispersion=None, n_targets=None):
+        """
+        Constructor
+        Parameters
+        ----------
+        solver: specific solver for OLS, default 'svd', possible solvers are:
+                {'auto', 'svd', 'cholesky', 'lsqr', 'sparse_cg', 'sag'}.
+        fit_intercept: boolean indicating fit intercept or not
+        est_stderr: boolean indicating calculte std.err of coefficients (usually expensive) or not
+        tol: tolerence of fitting error
+        max_iter: maximum iteraration of fitting
+        reg_method: method to regularize the model, one of (None, l1, l2, elstic_net).
+                    Need to be compatible with the solver.
+        alpha: regularization strength
+        l1_ratio: if elastic_net, the l1 alpha ratio
+        coef: the coefficients if loading from trained model
+        stderr: the std.err of coefficients if loading from trained model
+
+        n_targets: the number of dependent variables
+        dispersion: dispersion/scale mareix of the OLS
+        -------
+        """
         super(OLS, self).__init__(
             solver=solver, fit_intercept=fit_intercept, est_stderr=est_stderr,
             tol=tol, max_iter=max_iter,
@@ -366,6 +570,10 @@ class OLS(BaseModel):
             self._model.intercept_ = 0
 
     def _pick_model(self):
+        """
+        Helper function to select a proper sklearn linear regression model
+        based on the regulariztaion specified by the user.
+        """
         if self.reg_method is None or self.alpha < EPS:
             self._model = linear_model.LinearRegression(
                 fit_intercept=False)
@@ -385,36 +593,50 @@ class OLS(BaseModel):
 
     def fit(self, X, Y, sample_weight=None):
         """
-        fit the weighted model
+        Fit the weighted model
         Parameters
         ----------
-        X : design matrix
-        Y : response matrix
-        sample_weight: sample weight vector
-
+        X : design matrix of shape (n_samples, n_features), 2d
+        Y : response matrix of shape (n_samples, n_targets), 2d
+        sample_weight: sample weight vector of shape (n_samples, ), or float, or None
         """
         def _estimate_dispersion():
+            """
+            Estimate dispersion matrix based on the fitted model
+            Returns
+            -------
+            dispersion matrix: array of shape (n_targets, n_targets), 2d
+            """
             mu, wendog = _rescale_data(self.predict(X), Y, sample_weight)
-            # this is due to sklearn inconsistency about lasso and linear regression, etc.
             wresid = mu - wendog
             return np.dot(wresid.T, wresid) / np.sum(sample_weight)
 
         def _estimate_stderr():
-            # this is different from the implementations from statsmodels
-            # that we do not consider dof
-            # http://www.public.iastate.edu/~maitra/stat501/lectures/MultivariateRegression.pdf
-            # https://stats.stackexchange.com/questions/52704/covariance-of-linear-
-            # regression-coefficients-in-weighted-least-squares-method
-            # http://pj.freefaculty.org/guides/stat/Regression/GLS/GLS-1-guide.pdf
-            # https://stats.stackexchange.com/questions/27033/in-r-given-an-output-from-
-            # optim-with-a-hessian-matrix-how-to-calculate-paramet
-            # http://msekce.karlin.mff.cuni.cz/~vorisek/Seminar/0910l/jonas.pdf
+            """
+            Estimate standard deviation of the coefficients.
+            Returns
+            -------
+            standard deviation of the coefficients: array with the same shape as coef
+            Notes
+            -------
+            It is not the same stderr as Weighted Least Squares (WLS).
+            WLS assumes sample weight is inversely proportional to the covariance.
+            Useful links:
+            http://www.public.iastate.edu/~maitra/stat501/lectures/MultivariateRegression.pdf
+            https://stats.stackexchange.com/questions/52704/covariance-of-linear-
+            regression-coefficients-in-weighted-least-squares-method
+            http://pj.freefaculty.org/guides/stat/Regression/GLS/GLS-1-guide.pdf
+            https://stats.stackexchange.com/questions/27033/in-r-given-an-output-from-
+            optim-with-a-hessian-matrix-how-to-calculate-paramet
+            http://msekce.karlin.mff.cuni.cz/~vorisek/Seminar/0910l/jonas.pdf
+            """
             if self.reg_method is None or self.alpha < EPS:
                 wexog, wendog = _rescale_data(X_train, Y, sample_weight)
                 stderr = np.zeros((self.n_targets, X_train.shape[1]))
                 try:
                     XWX_inverse_XW_sqrt = np.linalg.inv(np.dot(wexog.T, wexog)).dot(wexog.T)
                 except:
+                    logging.warning('Covariance matrix is singular, cannot estimate stderr.')
                     return None
                 sqrt_diag_XWX_inverse_XW_sqrt_W_XWX_inverse_XW_sqrt = np.sqrt(np.diag(
                     XWX_inverse_XW_sqrt.dot(np.diag(sample_weight)).dot(XWX_inverse_XW_sqrt.T)))
@@ -424,57 +646,60 @@ class OLS(BaseModel):
                 return stderr.reshape(self.coef.shape)
             return None
 
-        if Y.ndim == 1:
-            Y = Y.reshape(-1, 1)
+        X_train, sample_weight = self._transform_X_sample_weight(X, sample_weight=sample_weight)
+        self._raise_error_if_sample_weight_sum_zero(sample_weight)
+        Y = self._transform_Y(Y)
         self.n_targets = Y.shape[1]
-
-        if self.fit_intercept:
-            X_train = add_constant(X, has_constant='add')
-        else:
-            X_train = X
-        if sample_weight is None:
-            sample_weight = np.ones(X.shape[0])
-        elif isinstance(sample_weight, numbers.Number):
-            sample_weight = np.ones(X.shape[0]) * sample_weight
-        if np.sum(sample_weight) < EPS:
-            logging.warning('Sum of sample weight is 0, not fitting model')
-            return
         self._model.fit(X_train, Y, sample_weight)
         self.coef = self._model.coef_
         self.dispersion = _estimate_dispersion()
         if self.est_stderr:
             self.stderr = _estimate_stderr()
 
-    def predict(self, X):
+    def _transform_Y(self, Y):
         """
-        predict the Y value based on the model
+        Transform the response Y
         ----------
-        X : design matrix
+        Y : response matrix of shape (n_samples, ) or (n_samples, n_targets) depending on family
         Returns
         -------
-        predicted value
+        Y : response matrix of shape (n_samples, n_targets)
         """
-        if self.coef is None:
-            logging.warning('No trained model, cannot predict.')
-            return None
-        if self.fit_intercept:
-            X = add_constant(X, has_constant='add')
+        if Y.ndim == 1:
+            Y = Y.reshape(-1, 1)
+        return Y
+
+    def predict(self, X):
+        """
+        Predict the Y value based on the model
+        ----------
+        X : design matrix of shape (n_samples, n_features), 2d
+        Returns
+        -------
+        predicted value, of shape (n_samples, n_targets), 2d
+        """
+        self._raise_error_if_model_not_trained()
+        X = self._transform_X(X)
         return self._model.predict(X).reshape(-1, self.n_targets)
 
     def loglike_per_sample(self, X, Y):
         """
-        Given a set of X and Y, calculate the probability of
-        observing Y value
+        Given a set of X and Y, calculate the log probability of
+        observing each of Y value given each X value
+        Parameters
+        ----------
+        X : design matrix of shape (n_samples, n_features), 2d
+        Y : observed response matrix of shape (n_samples, n_targets), 2d
+        Returns
+        -------
+        log_p: array of shape (n_samples, )
         """
+        self._raise_error_if_model_not_trained()
         assert X.shape[0] == Y.shape[0]
-        if self.coef is None:
-            logging.warning('No trained model, cannot calculate loglike.')
-            return None
         mu = self.predict(X)
         # https://stackoverflow.com/questions/13312498/how-to-find-degenerate-
         # rows-columns-in-a-covariance-matrix
-        if Y.ndim == 1:
-            Y = Y.reshape(-1, 1)
+        Y = self._transform_Y(Y)
         zero_inds = np.where(np.diag(self.dispersion) < EPS)[0]
         log_p = np.zeros(Y.shape[0])
         log_p[~np.isclose(
@@ -485,7 +710,7 @@ class OLS(BaseModel):
         dispersion = self.dispersion[np.ix_(non_zero_inds, non_zero_inds)]
         if dispersion.shape[0] == 0:
             return log_p
-        if np.linalg.det(dispersion) > EPS:
+        if np.linalg.cond(dispersion) < 1 / EPS:
             # This is a harsh test, if the det is ensured to be > 0
             # all diagonal of dispersion will be > 0
             # for the zero parts:
@@ -493,14 +718,24 @@ class OLS(BaseModel):
             log_p += rv.logpdf(Y[:, non_zero_inds] - mu[:, non_zero_inds])
             return log_p
         else:
-            logging.error("""Dispersion matrix is singular, not able to calculate likelihood.
-            Most like due to perfect correlations within dependent variables.
-            Try another model specification.""")
-            raise ValueError("""Dispersion matrix is singular, not able to calculate likelihood.
-            Most like due to perfect correlations within dependent variables.
-            Try another model specification.""")
+            raise ValueError(
+                """
+                    Dispersion matrix is singular, cannot calculate likelike_per_sample.
+                    Most like due to perfect correlations among dependent variables.
+                    Try another model specification.
+                """
+            )
 
     def to_json(self, path):
+        """
+        Generate json object of the model
+        Parameters
+        ----------
+        path : the path to save the model
+        Returns
+        -------
+        json_dict: a dictionary containing the attributes of the OLS
+        """
         json_dict = super(OLS, self).to_json(path=path)
         json_dict['properties'].update(
             {
@@ -518,6 +753,27 @@ class OLS(BaseModel):
     @classmethod
     def _from_json(cls, json_dict, solver, fit_intercept, est_stderr,
                    tol, max_iter, reg_method, alpha, l1_ratio, coef, stderr):
+        """
+        Helper function to construct the OLS used by from_json.
+        This function overrides the parent class.
+        Parameters
+        ----------
+        json_dict : the dictionary that specifies the model
+        solver: specific solver for OLS
+        fit_intercept: boolean indicating fit intercept or not
+        est_stderr: boolean indicating calculte std.err of coefficients (usually expensive) or not
+        tol: tolerence of fitting error
+        max_iter: maximum iteraration of fitting
+        reg_method: method to regularize the model, one of (None, l1, l2, elstic_net).
+                    Need to be compatible with the solver.
+        alpha: regularization strength
+        l1_ratio: if elastic_net, the l1 alpha ratio
+        coef: the coefficients
+        stderr: the std.err of coefficients
+        Returns
+        -------
+        OLS object: an OLS object specified by the json_dict and other arguments
+        """
         return cls(solver=solver, fit_intercept=fit_intercept, est_stderr=est_stderr,
                    reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,
                    coef=coef, stderr=stderr,
@@ -528,14 +784,39 @@ class OLS(BaseModel):
 
 class BaseMNL(BaseModel):
     """
-    A MNL for data with input and output.
+    A Base Multinomial Logistic regression model.
+    BaseMNL does nothing, to be extended by
+    (1) MNL with discrete output (DiscreteMNL) and.
+    (2) MNL with probability output (CrossEntropyMNL).
     """
 
     def __init__(self, solver='lbfgs', fit_intercept=True, est_stderr=False,
-                 reg_method=None, alpha=0, l1_ratio=0,
+                 reg_method='l2', alpha=0, l1_ratio=0,
                  tol=1e-4, max_iter=100,
                  coef=None, stderr=None,
                  classes=None, n_classes=None):
+        """
+        Constructor
+        Parameters
+        ----------
+        solver: specific solver for each linear model, default 'lbfgs',
+                possible solvers are {'newton-cg', 'lbfgs', 'liblinear', 'sag'}.
+                Need to be consistent with the regularization method.
+        fit_intercept: boolean indicating fit intercept or not
+        est_stderr: boolean indicating calculte std.err of coefficients (usually expensive) or not
+        tol: tolerence of fitting error
+        max_iter: maximum iteraration of fitting
+        reg_method: method to regularize the model, one of (l1, l2).
+                    Need to be compatible with the solver.
+        alpha: regularization strength
+        l1_ratio: the l1 alpha ratio
+        coef: the coefficients if loading from trained model
+        stderr: the std.err of coefficients if loading from trained model
+
+        classes: an array of class labels
+        n_classes: the number of classes to be classified
+        -------
+        """
         super(BaseMNL, self).__init__(
             solver=solver, fit_intercept=fit_intercept, est_stderr=est_stderr,
             tol=tol, max_iter=max_iter,
@@ -545,15 +826,17 @@ class BaseMNL(BaseModel):
         self.classes = classes
         self.n_classes = n_classes
         if self.coef is not None:
-            if self.n_classes == 1:
-                pass
-            else:
+            if self.n_classes >= 2:
                 self._pick_model()
                 self._model.coef_ = coef
                 self._model.classes_ = classes
                 self._model.intercept_ = 0
 
     def _pick_model(self):
+        """
+        Helper function to select a proper sklearn logistic regression model
+        based on the regulariztaion specified by the user.
+        """
         C = np.float64(1) / self.alpha
         if self.n_classes == 2:
             # perform logistic regression
@@ -570,53 +853,48 @@ class BaseMNL(BaseModel):
 
     def fit(self, X, Y, sample_weight=None):
         """
-        fit the weighted model
+        Fit the weighted model
         Parameters
         ----------
-        X : design matrix
-        Y : response matrix
-        sample_weight: sample weight vector
-
+        X : design matrix of shape (n_samples, n_features), 2d
+        Y : response matrix of shape (n_samples, ) for DiscreteMNL and
+            (n_samples, n_classes) for CrossEntropyMNL
+        sample_weight: sample weight vector of shape (n_samples, ), or float, or None
         """
-
         def _estimate_stderr():
-            # http://mplab.ucsd.edu/tutorials/MultivariateLogisticRegression.pdf
-            # https://github.com/cran/mlogit/blob/master/R/mlogit.methods.R
-            # https://arxiv.org/pdf/1404.3177.pdf
-            # https://stats.stackexchange.com/questions/283780/calculate-standard-
-            # error-of-weighted-logistic-regression-coefficients
-            # It seems that MNL with sample weights may not
-            # be able to estimate stderr of coefficients
-            # The reason is that
-            # 1. the hessian is not scale-invariant to sample_weight
-            # 2. There is no likelihood in weighted MNL
-            # Two codes to calculate hessian:
-            # 1. with sample weights:
-            # https://github.com/scikit-learn/scikit-learn/
-            # blob/ab93d657eb4268ac20c4db01c48065b5a1bfe80d/sklearn/linear_model/logistic.py
-            # 2. without sample weights
-            # http://www.statsmodels.org/dev/_modules/statsmodels/
-            # discrete/discrete_model.html#MNLogit
-            # now a placeholder
+            """
+            Estimate standard deviation of the coefficients.
+            Returns
+            -------
+            None for now, since I am not sure if we can estimate the stderr
+            under the case there is sample_weight since there is no likelihood,
+            thus no hessian of the log likelihood.
+            Notes
+            -------
+            http://mplab.ucsd.edu/tutorials/MultivariateLogisticRegression.pdf
+            https://github.com/cran/mlogit/blob/master/R/mlogit.methods.R
+            https://arxiv.org/pdf/1404.3177.pdf
+            https://stats.stackexchange.com/questions/283780/calculate-standard-
+            error-of-weighted-logistic-regression-coefficients
+
+            Two codes to calculate hessian:
+            1. with sample weights:
+            https://github.com/scikit-learn/scikit-learn/
+            blob/ab93d657eb4268ac20c4db01c48065b5a1bfe80d/sklearn/linear_model/logistic.py
+            2. without sample weights
+            http://www.statsmodels.org/dev/_modules/statsmodels/
+            discrete/discrete_model.html#MNLogit
+            """
             return None
 
-        if self.fit_intercept:
-            X = add_constant(X, has_constant='add')
-        if sample_weight is None:
-            sample_weight = np.ones(X.shape[0])
-        elif isinstance(sample_weight, numbers.Number):
-            sample_weight = np.ones(X.shape[0]) * sample_weight
-        if np.sum(sample_weight) < EPS:
-            logging.warning('Sum of sample weight is 0, not fitting model')
-            return
-
+        X, sample_weight = self._transform_X_sample_weight(X, sample_weight=sample_weight)
+        self._raise_error_if_sample_weight_sum_zero(sample_weight)
         X, Y, sample_weight = self._label_encoder(
-            X, Y, sample_weight=sample_weight)
+            X, Y, sample_weight)
         assert Y.ndim == 1
         classes = np.unique(Y)
         self.n_classes = len(classes)
 
-        # TODO
         if self.n_classes == 1:
             # no need to perform any model
             # self.coef is a all zeros array of shape (n_features,1)
@@ -632,26 +910,53 @@ class BaseMNL(BaseModel):
                 self.stderr = _estimate_stderr()
 
     @staticmethod
-    def _label_encoder(X, Y, sample_weight=None):
-        return NotImplementedError
+    def _label_encoder(X, Y, sample_weight):
+        """
+        Convert input to proper format to be used by sklearn logistic regression.
+        Mainly transforms Y to a 1d vector containing the class label for each sample.
+        This function is designed to be override by subclasses.
+        Parameters
+        ----------
+        X : design matrix of shape (n_samples, n_features), 2d
+        Y : response matrix of shape (n_samples, ) for DiscreteMNL and
+            (n_samples, n_classes) for CrossEntropyMNL
+        sample_weight: sample weight vector of shape (n_samples, )
+        Returns
+        -------
+        X_transformed : design matrix of shape (n, n_features), 2d
+        Y_transformed : response matrix of shape (n, )
+        sample_weight_transformed: sample weight vector of shape (n, )
+        where n:
+        is n_samples in the discrete case and
+        is n_samples * n_classes in the cross entropy case
+        """
+        raise NotImplementedError
 
     def _label_decoder(self, Y):
-        return NotImplementedError
+        """
+        Convert the response vector to probability matrix.
+        This function is designed to be override by subclasses.
+        Parameters
+        ----------
+        Y : response matrix of shape (n_samples, ) for DiscreteMNL and
+            (n_samples, n_classes) for CrossEntropyMNL
+        Returns
+        -------
+        Y_transformed : of shape (n_samples, n_classes).
+        """
+        raise NotImplementedError
 
     def predict_log_proba(self, X):
         """
-        predict the Y value based on the model
+        Predict the log probability of each class
         ----------
-        X : design matrix
+        X : design matrix of shape (n_samples, n_features), 2d
         Returns
         -------
-        predicted value
+        log probability matrix : of shape (n_samples, n_classes), 2d
         """
-        if self.coef is None:
-            logging.warning('No trained model, cannot predict.')
-            return None
-        if self.fit_intercept:
-            X = add_constant(X, has_constant='add')
+        self._raise_error_if_model_not_trained()
+        X = self._transform_X(X)
         if self.n_classes == 1:
             return np.zeros((X.shape[0], 1))
 
@@ -659,32 +964,34 @@ class BaseMNL(BaseModel):
 
     def predict(self, X):
         """
-        predict the Y value based on the model
+        Predict the most likely class label for each sample
         ----------
-        X : design matrix
-        exclude_set : a set of excluded choices.
+        X : design matrix of shape (n_samples, n_features), 2d
         Returns
         -------
-        predicted value
+        labels : of shape (n_samples, ), 1d
         """
-        if self.coef is None:
-            logging.warning('No trained model, cannot predict.')
-            return None
-        if self.fit_intercept:
-            X = add_constant(X, has_constant='add')
+        self._raise_error_if_model_not_trained()
+        X = self._transform_X(X)
         if self.n_classes == 1:
             return self.classes[np.zeros(X.shape[0], dtype=np.int)]
         return self._model.predict(X)
 
     def loglike_per_sample(self, X, Y):
         """
-        Given a set of X and Y, calculate the probability of
-        observing Y value
+        Given a set of X and Y, calculate the log probability of
+        observing each of Y value given each X value
+        Parameters
+        ----------
+        X : design matrix of shape (n_samples, n_features), 2d
+        Y : response matrix of shape (n_samples, ) for DiscreteMNL and
+            (n_samples, n_classes) for CrossEntropyMNL
+        Returns
+        -------
+        log_p: array of shape (n_samples, )
         """
+        self._raise_error_if_model_not_trained()
         assert X.shape[0] == Y.shape[0]
-        if self.coef is None:
-            logging.warning('No trained model, cannot calculate loglike.')
-            return None
         Y = self._label_decoder(Y)
         assert X.shape[0] == Y.shape[0]
         assert Y.shape[1] == self.n_classes
@@ -695,6 +1002,27 @@ class BaseMNL(BaseModel):
     @classmethod
     def _from_json_MNL(cls, json_dict, solver, fit_intercept, est_stderr,
                        tol, max_iter, reg_method, alpha, l1_ratio, coef, stderr):
+        """
+        Helper function within the BaseMNL class to construct the specific MNL used by _from_json.
+        This function is designed to be override by subsubclasses.
+        Parameters
+        ----------
+        json_dict : the dictionary that specifies the model
+        solver: specific solver for each MNL
+        fit_intercept: boolean indicating fit intercept or not
+        est_stderr: boolean indicating calculte std.err of coefficients (usually expensive) or not
+        tol: tolerence of fitting error
+        max_iter: maximum iteraration of fitting
+        reg_method: method to regularize the model, one of (l1, l2).
+                    Need to be compatible with the solver.
+        alpha: regularization strength
+        l1_ratio: the l1 alpha ratio
+        coef: the coefficients
+        stderr: the std.err of coefficients
+        Returns
+        -------
+        Discrete/CrossEntropyMNL object: a MNL object specified by the json_dict and other arguments
+        """
         return cls(
             solver=solver, fit_intercept=fit_intercept, est_stderr=est_stderr,
             reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,
@@ -703,6 +1031,27 @@ class BaseMNL(BaseModel):
     @classmethod
     def _from_json(cls, json_dict, solver, fit_intercept, est_stderr,
                    tol, max_iter, reg_method, alpha, l1_ratio, coef, stderr):
+        """
+        Helper function to construct the linear model used by from_json.
+        This function overrides the parent class.
+        Parameters
+        ----------
+        json_dict : the dictionary that specifies the model
+        solver: specific solver for each MNL
+        fit_intercept: boolean indicating fit intercept or not
+        est_stderr: boolean indicating calculte std.err of coefficients (usually expensive) or not
+        tol: tolerence of fitting error
+        max_iter: maximum iteraration of fitting
+        reg_method: method to regularize the model, one of (l1, l2).
+                    Need to be compatible with the solver.
+        alpha: regularization strength
+        l1_ratio: the l1 alpha ratio
+        coef: the coefficients
+        stderr: the std.err of coefficients
+        Returns
+        -------
+        Discrete/CrossEntropyMNL object: a MNL object specified by the json_dict and other arguments
+        """
         return cls._from_json_MNL(
             json_dict,
             solver=solver, fit_intercept=fit_intercept, est_stderr=est_stderr,
@@ -712,14 +1061,35 @@ class BaseMNL(BaseModel):
 
 class DiscreteMNL(BaseMNL):
     """
-    A MNL for discrete data with input and output.
+    A MNL for the case where responses are discrete labels.
     """
 
     def __init__(self, solver='lbfgs', fit_intercept=True, est_stderr=False,
-                 reg_method=None, alpha=0, l1_ratio=0,
+                 reg_method='l2', alpha=0, l1_ratio=0,
                  tol=1e-4, max_iter=100,
                  coef=None, stderr=None,
                  classes=None):
+        """
+        Constructor
+        Parameters
+        ----------
+        solver: specific solver for each linear model, default 'lbfgs',
+                possible solvers are {'newton-cg', 'lbfgs', 'liblinear', 'sag'}.
+                Need to be consistent with the regularization method.
+        fit_intercept: boolean indicating fit intercept or not
+        est_stderr: boolean indicating calculte std.err of coefficients (usually expensive) or not
+        tol: tolerence of fitting error
+        max_iter: maximum iteraration of fitting
+        reg_method: method to regularize the model, one of (l1, l2).
+                    Need to be compatible with the solver.
+        alpha: regularization strength
+        l1_ratio: the l1 alpha ratio
+        coef: the coefficients if loading from trained model
+        stderr: the std.err of coefficients if loading from trained model
+
+        classes: class labels if loading from trained model
+        -------
+        """
         n_classes = None if classes is None else classes.shape[0]
         super(DiscreteMNL, self).__init__(
             solver=solver, fit_intercept=fit_intercept, est_stderr=est_stderr,
@@ -729,12 +1099,37 @@ class DiscreteMNL(BaseMNL):
             classes=classes, n_classes=n_classes)
 
     @staticmethod
-    def _label_encoder(X, Y, sample_weight=None):
+    def _label_encoder(X, Y, sample_weight):
+        """
+        Convert input to proper format to be used by sklearn logistic regression.
+        Basically do nothing for the discrete case.
+        This function overrides parent class.
+        Parameters
+        ----------
+        X : design matrix of shape (n_samples, n_features), 2d
+        Y : response matrix of shape (n_samples, )
+        sample_weight: sample weight vector of shape (n_samples, )
+        Returns
+        -------
+        X_transformed : design matrix of shape (n_samples, n_features), 2d
+        Y_transformed : response matrix of shape (n_samples, )
+        sample_weight_transformed: sample weight vector of shape (n_samples, )
+        """
         if Y.ndim == 2 and Y.shape[1] == 1:
             Y = Y.reshape(-1,)
         return X, Y, sample_weight
 
     def _label_decoder(self, Y):
+        """
+        Convert the response vector to probability matrix.
+        This function overrides parent classes.
+        Parameters
+        ----------
+        Y : response matrix of shape (n_samples, )
+        Returns
+        -------
+        Y_transformed : of shape (n_samples, n_classes).
+        """
         # consider the case of outside labels
         if Y.ndim == 2 and Y.shape[1] == 1:
             Y = Y.reshape(-1,)
@@ -750,6 +1145,15 @@ class DiscreteMNL(BaseMNL):
         return label_binarize(Y, self.classes)
 
     def to_json(self, path):
+        """
+        Generate json object of the model
+        Parameters
+        ----------
+        path : the path to save the model
+        Returns
+        -------
+        json_dict: a dictionary containing the attributes of the DiscreteMNL
+        """
         json_dict = super(DiscreteMNL, self).to_json(path=path)
         json_dict['properties'].update(
             {
@@ -767,6 +1171,27 @@ class DiscreteMNL(BaseMNL):
     def _from_json_MNL(cls, json_dict, solver, fit_intercept, est_stderr,
                        reg_method, alpha, l1_ratio, coef, stderr,
                        tol, max_iter):
+        """
+        Helper function within the construct the DiscreteMNL used by _from_json.
+        This function overrides parent class.
+        Parameters
+        ----------
+        json_dict : the dictionary that specifies the model
+        solver: specific solver for each linear model
+        fit_intercept: boolean indicating fit intercept or not
+        est_stderr: boolean indicating calculte std.err of coefficients (usually expensive) or not
+        tol: tolerence of fitting error
+        max_iter: maximum iteraration of fitting
+        reg_method: method to regularize the model, one of (None, l1, l2, elstic_net).
+                    Need to be compatible with the solver.
+        alpha: regularization strength
+        l1_ratio: the l1 alpha ratio
+        coef: the coefficients
+        stderr: the std.err of coefficients
+        Returns
+        -------
+        DiscreteMNL object: a DiscreteMNL object specified by the json_dict and other arguments
+        """
         return cls(
             solver=solver, fit_intercept=fit_intercept, est_stderr=est_stderr,
             reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,
@@ -777,14 +1202,35 @@ class DiscreteMNL(BaseMNL):
 
 class CrossEntropyMNL(BaseMNL):
     """
-    A MNL with probability response for data with input and output.
+    A MNL for the case where responses are probabilities sum to one.
     """
 
     def __init__(self, solver='lbfgs', fit_intercept=True, est_stderr=False,
-                 reg_method=None, alpha=0, l1_ratio=0,
+                 reg_method='l2', alpha=0, l1_ratio=0,
                  tol=1e-4, max_iter=100,
                  coef=None, stderr=None,
                  n_classes=None):
+        """
+        Constructor
+        Parameters
+        ----------
+        solver: specific solver for each linear model, default 'lbfgs',
+                possible solvers are {'newton-cg', 'lbfgs', 'liblinear', 'sag'}.
+                Need to be consistent with the regularization method.
+        fit_intercept: boolean indicating fit intercept or not
+        est_stderr: boolean indicating calculte std.err of coefficients (usually expensive) or not
+        tol: tolerence of fitting error
+        max_iter: maximum iteraration of fitting
+        reg_method: method to regularize the model, one of (l1, l2).
+                    Need to be compatible with the solver.
+        alpha: regularization strength
+        l1_ratio: the l1 alpha ratio
+        coef: the coefficients if loading from trained model
+        stderr: the std.err of coefficients if loading from trained model
+
+        n_classes: number of classes to be classified
+        -------
+        """
         classes = None if n_classes is None else np.arange(n_classes)
         super(CrossEntropyMNL, self).__init__(
             solver=solver, fit_intercept=fit_intercept, est_stderr=est_stderr,
@@ -794,16 +1240,26 @@ class CrossEntropyMNL(BaseMNL):
             classes=classes, n_classes=n_classes)
 
     @staticmethod
-    def _label_encoder(X, Y, sample_weight=None):
-        # idea from https://stats.stackexchange.com/questions/90622/
-        # regression-model-where-output-is-a-probability
-        if sample_weight is None:
-            sample_weight = np.ones(X.shape[0])
-        elif isinstance(sample_weight, numbers.Number):
-            sample_weight = np.ones(X.shape[0]) * sample_weight
-        if np.sum(sample_weight) < EPS:
-            logging.warning('Sum of sample weight is 0, not fitting model')
-            return
+    def _label_encoder(X, Y, sample_weight):
+        """
+        Convert input to proper format to be used by sklearn logistic regression.
+        Mainly transforms Y to a 1d vector containing the class label for each sample.
+        This function overrides parent class.
+        Parameters
+        ----------
+        X : design matrix of shape (n_samples, n_features), 2d
+        Y : response matrix of shape (n_samples, n_classes)
+        sample_weight: sample weight vector of shape (n_samples, )
+        Returns
+        -------
+        X_repeated : design matrix of shape (n_samples * n_classes, n_features), 2d
+        Y_repeated : response matrix of shape (n_samples * n_classes, )
+        sample_weight_repeated: sample weight vector of shape (n_samples * n_classes, )
+        Notes
+        ----------
+        idea from https://stats.stackexchange.com/questions/90622/
+        regression-model-where-output-is-a-probability
+        """
         n_samples, n_classes = X.shape[0], Y.shape[1]
         X_repeated = np.repeat(X, n_classes, axis=0)
         Y_repeated = np.tile(np.arange(n_classes), n_samples)
@@ -812,14 +1268,30 @@ class CrossEntropyMNL(BaseMNL):
 
     def _label_decoder(self, Y):
         """
-        Given a set of X and Y, calculate the probability of
-        observing Y value
+        Convert the response vector to probability matrix.
+        In CrossEntropyMNL, this function basically does nothing.
+        This function overrides parent classes.
+        Parameters
+        ----------
+        Y : response matrix of shape (n_samples, n_classes)
+        Returns
+        -------
+        Y_transformed : of shape (n_samples, n_classes).
         """
         assert Y.ndim == 2
         assert Y.shape[1] == self.n_classes
         return Y
 
     def to_json(self, path):
+        """
+        Generate json object of the model
+        Parameters
+        ----------
+        path : the path to save the model
+        Returns
+        -------
+        json_dict: a dictionary containing the attributes of the CrossEntropyMNL
+        """
         json_dict = super(CrossEntropyMNL, self).to_json(path=path)
         json_dict['properties'].update(
             {
@@ -831,6 +1303,28 @@ class CrossEntropyMNL(BaseMNL):
     def _from_json_MNL(cls, json_dict, solver, fit_intercept, est_stderr,
                        reg_method, alpha, l1_ratio, coef, stderr,
                        tol, max_iter):
+        """
+        Helper function within the construct the CrossEntropyMNL used by _from_json.
+        This function overrides parent class.
+        Parameters
+        ----------
+        json_dict : the dictionary that specifies the model
+        solver: specific solver for each linear model
+        fit_intercept: boolean indicating fit intercept or not
+        est_stderr: boolean indicating calculte std.err of coefficients (usually expensive) or not
+        tol: tolerence of fitting error
+        max_iter: maximum iteraration of fitting
+        reg_method: method to regularize the model, one of (l1, l2).
+                    Need to be compatible with the solver.
+        alpha: regularization strength
+        l1_ratio: the l1 alpha ratio
+        coef: the coefficients
+        stderr: the std.err of coefficients
+        Returns
+        -------
+        CrossEntropyMNL object:
+            a CrossEntropyMNL object specified by the json_dict and other arguments
+        """
         return cls(
             solver=solver, fit_intercept=fit_intercept, est_stderr=est_stderr,
             reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,

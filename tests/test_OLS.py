@@ -206,13 +206,8 @@ class UnivariateOLSTests(unittest.TestCase):
             solver='pinv', fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
-        self.model.fit(self.data_longley.exog, self.data_longley.endog, sample_weight=0)
-        # coefficient
-        self.assertTrue(self.model.coef is None)
-        # std.err of coefficient (calibrated by df_resid)
-        self.assertTrue(self.model.stderr is None)
-        # scale
-        self.assertTrue(self.model.dispersion is None)
+        self.assertRaises(ValueError, self.model.fit,
+                          self.data_longley.exog, self.data_longley.endog, 0)
 
     def test_ols_sample_weight_half_zero_half_one(self):
         self.model = OLS(
@@ -446,13 +441,7 @@ class IndependentMultivariateOLSTests(unittest.TestCase):
             solver='pinv', fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
-        self.model.fit(self.X, self.Y, sample_weight=0)
-        # coefficient
-        self.assertTrue(self.model.coef is None)
-        # std.err of coefficient (calibrated by df_resid)
-        self.assertTrue(self.model.stderr is None)
-        # scale
-        self.assertTrue(self.model.dispersion is None)
+        self.assertRaises(ValueError, self.model.fit, self.X, self.Y, 0)
 
     def test_ols_sample_weight_half_zero_half_one(self):
         self.model = OLS(
@@ -707,13 +696,7 @@ class PerfectCorrelationMultivariateOLSTests(unittest.TestCase):
             solver='pinv', fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
-        self.model.fit(self.X, self.Y, sample_weight=0)
-        # coefficient
-        self.assertTrue(self.model.coef is None)
-        # std.err of coefficient (calibrated by df_resid)
-        self.assertTrue(self.model.stderr is None)
-        # scale
-        self.assertTrue(self.model.dispersion is None)
+        self.assertRaises(ValueError, self.model.fit, self.X, self.Y, 0)
 
     def test_ols_sample_weight_half_zero_half_one(self):
         self.model = OLS(
