@@ -1,0 +1,244 @@
+{
+    "data_type": "SemiSupervisedIOHMM", 
+    "properties": {
+        "EM_tol": 1e-10, 
+        "covariates_emissions": [
+            []
+        ], 
+        "covariates_initial": [], 
+        "covariates_transition": [], 
+        "max_EM_iter": 200, 
+        "model_emissions": [
+            [
+                {
+                    "data_type": "OLS", 
+                    "properties": {
+                        "alpha": 0, 
+                        "coef": {
+                            "data_type": "numpy.ndarray", 
+                            "path": "../models/SemiSupervisedIOHMM/model_emissions/state_0/emission_0/coef.npy"
+                        }, 
+                        "dispersion": {
+                            "data_type": "numpy.ndarray", 
+                            "path": "../models/SemiSupervisedIOHMM/model_emissions/state_0/emission_0/dispersion.npy"
+                        }, 
+                        "est_stderr": false, 
+                        "fit_intercept": true, 
+                        "l1_ratio": 0, 
+                        "max_iter": 100, 
+                        "n_targets": 1, 
+                        "reg_method": null, 
+                        "solver": "svd", 
+                        "stderr": {
+                            "data_type": "numpy.ndarray", 
+                            "path": "../models/SemiSupervisedIOHMM/model_emissions/state_0/emission_0/stderr.npy"
+                        }, 
+                        "tol": 0.0001
+                    }
+                }
+            ], 
+            [
+                {
+                    "data_type": "OLS", 
+                    "properties": {
+                        "alpha": 0, 
+                        "coef": {
+                            "data_type": "numpy.ndarray", 
+                            "path": "../models/SemiSupervisedIOHMM/model_emissions/state_1/emission_0/coef.npy"
+                        }, 
+                        "dispersion": {
+                            "data_type": "numpy.ndarray", 
+                            "path": "../models/SemiSupervisedIOHMM/model_emissions/state_1/emission_0/dispersion.npy"
+                        }, 
+                        "est_stderr": false, 
+                        "fit_intercept": true, 
+                        "l1_ratio": 0, 
+                        "max_iter": 100, 
+                        "n_targets": 1, 
+                        "reg_method": null, 
+                        "solver": "svd", 
+                        "stderr": {
+                            "data_type": "numpy.ndarray", 
+                            "path": "../models/SemiSupervisedIOHMM/model_emissions/state_1/emission_0/stderr.npy"
+                        }, 
+                        "tol": 0.0001
+                    }
+                }
+            ], 
+            [
+                {
+                    "data_type": "OLS", 
+                    "properties": {
+                        "alpha": 0, 
+                        "coef": {
+                            "data_type": "numpy.ndarray", 
+                            "path": "../models/SemiSupervisedIOHMM/model_emissions/state_2/emission_0/coef.npy"
+                        }, 
+                        "dispersion": {
+                            "data_type": "numpy.ndarray", 
+                            "path": "../models/SemiSupervisedIOHMM/model_emissions/state_2/emission_0/dispersion.npy"
+                        }, 
+                        "est_stderr": false, 
+                        "fit_intercept": true, 
+                        "l1_ratio": 0, 
+                        "max_iter": 100, 
+                        "n_targets": 1, 
+                        "reg_method": null, 
+                        "solver": "svd", 
+                        "stderr": {
+                            "data_type": "numpy.ndarray", 
+                            "path": "../models/SemiSupervisedIOHMM/model_emissions/state_2/emission_0/stderr.npy"
+                        }, 
+                        "tol": 0.0001
+                    }
+                }
+            ], 
+            [
+                {
+                    "data_type": "OLS", 
+                    "properties": {
+                        "alpha": 0, 
+                        "coef": {
+                            "data_type": "numpy.ndarray", 
+                            "path": "../models/SemiSupervisedIOHMM/model_emissions/state_3/emission_0/coef.npy"
+                        }, 
+                        "dispersion": {
+                            "data_type": "numpy.ndarray", 
+                            "path": "../models/SemiSupervisedIOHMM/model_emissions/state_3/emission_0/dispersion.npy"
+                        }, 
+                        "est_stderr": false, 
+                        "fit_intercept": true, 
+                        "l1_ratio": 0, 
+                        "max_iter": 100, 
+                        "n_targets": 1, 
+                        "reg_method": null, 
+                        "solver": "svd", 
+                        "stderr": {
+                            "data_type": "numpy.ndarray", 
+                            "path": "../models/SemiSupervisedIOHMM/model_emissions/state_3/emission_0/stderr.npy"
+                        }, 
+                        "tol": 0.0001
+                    }
+                }
+            ]
+        ], 
+        "model_initial": {
+            "data_type": "CrossEntropyMNL", 
+            "properties": {
+                "alpha": 0, 
+                "coef": {
+                    "data_type": "numpy.ndarray", 
+                    "path": "../models/SemiSupervisedIOHMM/model_initial/coef.npy"
+                }, 
+                "est_stderr": false, 
+                "fit_intercept": true, 
+                "l1_ratio": 0, 
+                "max_iter": 100, 
+                "n_classes": 4, 
+                "reg_method": "l2", 
+                "solver": "lbfgs", 
+                "stderr": {
+                    "data_type": "numpy.ndarray", 
+                    "path": "../models/SemiSupervisedIOHMM/model_initial/stderr.npy"
+                }, 
+                "tol": 0.0001
+            }
+        }, 
+        "model_transition": [
+            {
+                "data_type": "CrossEntropyMNL", 
+                "properties": {
+                    "alpha": 0, 
+                    "coef": {
+                        "data_type": "numpy.ndarray", 
+                        "path": "../models/SemiSupervisedIOHMM/model_transition/state_0/coef.npy"
+                    }, 
+                    "est_stderr": false, 
+                    "fit_intercept": true, 
+                    "l1_ratio": 0, 
+                    "max_iter": 100, 
+                    "n_classes": 4, 
+                    "reg_method": "l2", 
+                    "solver": "lbfgs", 
+                    "stderr": {
+                        "data_type": "numpy.ndarray", 
+                        "path": "../models/SemiSupervisedIOHMM/model_transition/state_0/stderr.npy"
+                    }, 
+                    "tol": 0.0001
+                }
+            }, 
+            {
+                "data_type": "CrossEntropyMNL", 
+                "properties": {
+                    "alpha": 0, 
+                    "coef": {
+                        "data_type": "numpy.ndarray", 
+                        "path": "../models/SemiSupervisedIOHMM/model_transition/state_1/coef.npy"
+                    }, 
+                    "est_stderr": false, 
+                    "fit_intercept": true, 
+                    "l1_ratio": 0, 
+                    "max_iter": 100, 
+                    "n_classes": 4, 
+                    "reg_method": "l2", 
+                    "solver": "lbfgs", 
+                    "stderr": {
+                        "data_type": "numpy.ndarray", 
+                        "path": "../models/SemiSupervisedIOHMM/model_transition/state_1/stderr.npy"
+                    }, 
+                    "tol": 0.0001
+                }
+            }, 
+            {
+                "data_type": "CrossEntropyMNL", 
+                "properties": {
+                    "alpha": 0, 
+                    "coef": {
+                        "data_type": "numpy.ndarray", 
+                        "path": "../models/SemiSupervisedIOHMM/model_transition/state_2/coef.npy"
+                    }, 
+                    "est_stderr": false, 
+                    "fit_intercept": true, 
+                    "l1_ratio": 0, 
+                    "max_iter": 100, 
+                    "n_classes": 4, 
+                    "reg_method": "l2", 
+                    "solver": "lbfgs", 
+                    "stderr": {
+                        "data_type": "numpy.ndarray", 
+                        "path": "../models/SemiSupervisedIOHMM/model_transition/state_2/stderr.npy"
+                    }, 
+                    "tol": 0.0001
+                }
+            }, 
+            {
+                "data_type": "CrossEntropyMNL", 
+                "properties": {
+                    "alpha": 0, 
+                    "coef": {
+                        "data_type": "numpy.ndarray", 
+                        "path": "../models/SemiSupervisedIOHMM/model_transition/state_3/coef.npy"
+                    }, 
+                    "est_stderr": false, 
+                    "fit_intercept": true, 
+                    "l1_ratio": 0, 
+                    "max_iter": 100, 
+                    "n_classes": 4, 
+                    "reg_method": "l2", 
+                    "solver": "lbfgs", 
+                    "stderr": {
+                        "data_type": "numpy.ndarray", 
+                        "path": "../models/SemiSupervisedIOHMM/model_transition/state_3/stderr.npy"
+                    }, 
+                    "tol": 0.0001
+                }
+            }
+        ], 
+        "num_states": 4, 
+        "responses_emissions": [
+            [
+                "rt"
+            ]
+        ]
+    }
+}

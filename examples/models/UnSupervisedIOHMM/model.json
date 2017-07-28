@@ -1,0 +1,200 @@
+{
+    "data_type": "UnSupervisedIOHMM", 
+    "properties": {
+        "EM_tol": 1e-06, 
+        "covariates_emissions": [
+            [], 
+            [
+                "Pacc"
+            ]
+        ], 
+        "covariates_initial": [], 
+        "covariates_transition": [], 
+        "max_EM_iter": 200, 
+        "model_emissions": [
+            [
+                {
+                    "data_type": "OLS", 
+                    "properties": {
+                        "alpha": 0, 
+                        "coef": {
+                            "data_type": "numpy.ndarray", 
+                            "path": "../models/UnSupervisedIOHMM/model_emissions/state_0/emission_0/coef.npy"
+                        }, 
+                        "dispersion": {
+                            "data_type": "numpy.ndarray", 
+                            "path": "../models/UnSupervisedIOHMM/model_emissions/state_0/emission_0/dispersion.npy"
+                        }, 
+                        "est_stderr": true, 
+                        "fit_intercept": true, 
+                        "l1_ratio": 0, 
+                        "max_iter": 100, 
+                        "n_targets": 1, 
+                        "reg_method": null, 
+                        "solver": "svd", 
+                        "stderr": {
+                            "data_type": "numpy.ndarray", 
+                            "path": "../models/UnSupervisedIOHMM/model_emissions/state_0/emission_0/stderr.npy"
+                        }, 
+                        "tol": 0.0001
+                    }
+                }, 
+                {
+                    "data_type": "DiscreteMNL", 
+                    "properties": {
+                        "alpha": 0, 
+                        "classes": {
+                            "data_type": "numpy.ndarray", 
+                            "path": "../models/UnSupervisedIOHMM/model_emissions/state_0/emission_1/classes.npy"
+                        }, 
+                        "coef": {
+                            "data_type": "numpy.ndarray", 
+                            "path": "../models/UnSupervisedIOHMM/model_emissions/state_0/emission_1/coef.npy"
+                        }, 
+                        "est_stderr": false, 
+                        "fit_intercept": true, 
+                        "l1_ratio": 0, 
+                        "max_iter": 100, 
+                        "reg_method": "l2", 
+                        "solver": "lbfgs", 
+                        "stderr": {
+                            "data_type": "numpy.ndarray", 
+                            "path": "../models/UnSupervisedIOHMM/model_emissions/state_0/emission_1/stderr.npy"
+                        }, 
+                        "tol": 0.0001
+                    }
+                }
+            ], 
+            [
+                {
+                    "data_type": "OLS", 
+                    "properties": {
+                        "alpha": 0, 
+                        "coef": {
+                            "data_type": "numpy.ndarray", 
+                            "path": "../models/UnSupervisedIOHMM/model_emissions/state_1/emission_0/coef.npy"
+                        }, 
+                        "dispersion": {
+                            "data_type": "numpy.ndarray", 
+                            "path": "../models/UnSupervisedIOHMM/model_emissions/state_1/emission_0/dispersion.npy"
+                        }, 
+                        "est_stderr": true, 
+                        "fit_intercept": true, 
+                        "l1_ratio": 0, 
+                        "max_iter": 100, 
+                        "n_targets": 1, 
+                        "reg_method": null, 
+                        "solver": "svd", 
+                        "stderr": {
+                            "data_type": "numpy.ndarray", 
+                            "path": "../models/UnSupervisedIOHMM/model_emissions/state_1/emission_0/stderr.npy"
+                        }, 
+                        "tol": 0.0001
+                    }
+                }, 
+                {
+                    "data_type": "DiscreteMNL", 
+                    "properties": {
+                        "alpha": 0, 
+                        "classes": {
+                            "data_type": "numpy.ndarray", 
+                            "path": "../models/UnSupervisedIOHMM/model_emissions/state_1/emission_1/classes.npy"
+                        }, 
+                        "coef": {
+                            "data_type": "numpy.ndarray", 
+                            "path": "../models/UnSupervisedIOHMM/model_emissions/state_1/emission_1/coef.npy"
+                        }, 
+                        "est_stderr": false, 
+                        "fit_intercept": true, 
+                        "l1_ratio": 0, 
+                        "max_iter": 100, 
+                        "reg_method": "l2", 
+                        "solver": "lbfgs", 
+                        "stderr": {
+                            "data_type": "numpy.ndarray", 
+                            "path": "../models/UnSupervisedIOHMM/model_emissions/state_1/emission_1/stderr.npy"
+                        }, 
+                        "tol": 0.0001
+                    }
+                }
+            ]
+        ], 
+        "model_initial": {
+            "data_type": "CrossEntropyMNL", 
+            "properties": {
+                "alpha": 0, 
+                "coef": {
+                    "data_type": "numpy.ndarray", 
+                    "path": "../models/UnSupervisedIOHMM/model_initial/coef.npy"
+                }, 
+                "est_stderr": false, 
+                "fit_intercept": true, 
+                "l1_ratio": 0, 
+                "max_iter": 100, 
+                "n_classes": 2, 
+                "reg_method": "l2", 
+                "solver": "lbfgs", 
+                "stderr": {
+                    "data_type": "numpy.ndarray", 
+                    "path": "../models/UnSupervisedIOHMM/model_initial/stderr.npy"
+                }, 
+                "tol": 0.0001
+            }
+        }, 
+        "model_transition": [
+            {
+                "data_type": "CrossEntropyMNL", 
+                "properties": {
+                    "alpha": 0, 
+                    "coef": {
+                        "data_type": "numpy.ndarray", 
+                        "path": "../models/UnSupervisedIOHMM/model_transition/state_0/coef.npy"
+                    }, 
+                    "est_stderr": false, 
+                    "fit_intercept": true, 
+                    "l1_ratio": 0, 
+                    "max_iter": 100, 
+                    "n_classes": 2, 
+                    "reg_method": "l2", 
+                    "solver": "lbfgs", 
+                    "stderr": {
+                        "data_type": "numpy.ndarray", 
+                        "path": "../models/UnSupervisedIOHMM/model_transition/state_0/stderr.npy"
+                    }, 
+                    "tol": 0.0001
+                }
+            }, 
+            {
+                "data_type": "CrossEntropyMNL", 
+                "properties": {
+                    "alpha": 0, 
+                    "coef": {
+                        "data_type": "numpy.ndarray", 
+                        "path": "../models/UnSupervisedIOHMM/model_transition/state_1/coef.npy"
+                    }, 
+                    "est_stderr": false, 
+                    "fit_intercept": true, 
+                    "l1_ratio": 0, 
+                    "max_iter": 100, 
+                    "n_classes": 2, 
+                    "reg_method": "l2", 
+                    "solver": "lbfgs", 
+                    "stderr": {
+                        "data_type": "numpy.ndarray", 
+                        "path": "../models/UnSupervisedIOHMM/model_transition/state_1/stderr.npy"
+                    }, 
+                    "tol": 0.0001
+                }
+            }
+        ], 
+        "num_states": 2, 
+        "responses_emissions": [
+            [
+                "rt"
+            ], 
+            [
+                "corr"
+            ]
+        ]
+    }
+}

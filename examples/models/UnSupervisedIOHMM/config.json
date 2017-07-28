@@ -1,0 +1,44 @@
+{
+    "data_type": "UnSupervisedIOHMM",
+    "properties": {
+        "EM_tol": 1e-06,
+        "covariates_emissions": [
+            [],
+            [
+                "Pacc"
+            ]
+        ],
+        "covariates_initial": [],
+        "covariates_transition": [],
+        "max_EM_iter": 200,
+        "model_emissions": [
+            {
+                "data_type": "OLS",
+                "properties": {
+                    "est_stderr": true
+                }
+            },
+            {
+                "data_type": "DiscreteMNL",
+                "properties": {}
+            }
+        ],
+        "model_initial": {
+            "data_type": "CrossEntropyMNL",
+            "properties": {}
+        },
+        "model_transition": {
+            "data_type": "CrossEntropyMNL",
+            "properties": {}
+        },
+        "num_states": 2,
+        "responses_emissions": [
+            [
+                "rt"
+            ],
+            [
+                "corr"
+            ]
+        ]
+    }
+}

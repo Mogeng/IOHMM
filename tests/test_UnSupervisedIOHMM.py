@@ -145,7 +145,7 @@ class UnSupervisedIOHMMTests(unittest.TestCase):
                  'covariates_emissions', 'responses_emissions',
                  'model_initial', 'model_transition', 'model_emissions']))
         with open('tests/IOHMM_models/UnSupervisedIOHMM/model.json', 'w') as outfile:
-            json.dump(json_dict, outfile)
+            json.dump(json_dict, outfile, indent=4, sort_keys=True)
 
     def test_from_json(self):
         with open('tests/IOHMM_models/UnSupervisedIOHMM/model.json') as json_data:
