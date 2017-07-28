@@ -1,0 +1,34 @@
+{
+    "data_type": "SupervisedIOHMM",
+    "properties": {
+        "covariates_emissions": [
+            []
+        ],
+        "covariates_initial": [],
+        "covariates_transition": [],
+        "model_emissions": [
+            {
+                "data_type": "OLS",
+                "properties": {}
+            }
+        ],
+        "model_initial": {
+            "data_type": "CrossEntropyMNL",
+            "properties": {
+                "solver": "lbfgs"
+            }
+        },
+        "model_transition": {
+            "data_type": "CrossEntropyMNL",
+            "properties": {
+                "solver": "lbfgs"
+            }
+        },
+        "num_states": 2,
+        "responses_emissions": [
+            [
+                "rt"
+            ]
+        ]
+    }
+}

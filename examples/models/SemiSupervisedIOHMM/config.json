@@ -1,0 +1,36 @@
+{
+    "data_type": "SemiSupervisedIOHMM",
+    "properties": {
+        "EM_tol": 1e-10,
+        "covariates_emissions": [
+            []
+        ],
+        "covariates_initial": [],
+        "covariates_transition": [],
+        "max_EM_iter": 200,
+        "model_emissions": [
+            {
+                "data_type": "OLS",
+                "properties": {}
+            }
+        ],
+        "model_initial": {
+            "data_type": "CrossEntropyMNL",
+            "properties": {
+                "solver": "lbfgs"
+            }
+        },
+        "model_transition": {
+            "data_type": "CrossEntropyMNL",
+            "properties": {
+                "solver": "lbfgs"
+            }
+        },
+        "num_states": 4,
+        "responses_emissions": [
+            [
+                "rt"
+            ]
+        ]
+    }
+}
