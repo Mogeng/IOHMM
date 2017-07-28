@@ -295,6 +295,7 @@ class BaseModel(object):
         This function is NOT designed to be override by subclasses.
         Parameters
         ----------
+        json_dict: a json dictionary containing the attributes of the linear model.
         Returns
         -------
         linear model: a linear model object specified by the json_dict

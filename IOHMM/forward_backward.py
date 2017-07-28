@@ -46,8 +46,8 @@ def forward_backward(log_prob_initial, log_prob_transition, log_Ey, log_state={}
         if we know the state is i at timestamp t.
     Returns
     -------
-    (1) posterial state log probability of each timestamp.
-    (2) posterial "transition" log probability of each timestamp.
+    (1) posterior state log probability of each timestamp.
+    (2) posterior "transition" log probability of each timestamp.
     (3) log likelihood of the sequence.
     see https://en.wikipedia.org/wiki/Forward-backward_algorithm for details.
     """
@@ -164,7 +164,7 @@ def cal_log_likelihood(log_alpha):
 
 def cal_log_gamma(log_alpha, log_beta, log_likelihood, log_state={}):
     """
-    The function to calculate the log of the posterial probability of each state
+    The function to calculate the log of the posterior probability of each state
     at each timestamp.
     Parameters
     ----------
@@ -182,8 +182,8 @@ def cal_log_gamma(log_alpha, log_beta, log_likelihood, log_state={}):
     Returns
     -------
     log_gamma : array-like of shape (t, k)
-        the log of the posterial probability of each state.
-        log_gamma_{t, i} is the posterial log of the probability of
+        the log of the posterior probability of each state.
+        log_gamma_{t, i} is the posterior log of the probability of
         being in state i at stimestamp t.
         see https://en.wikipedia.org/wiki/Forward-backward_algorithm for details.
     """
@@ -195,7 +195,7 @@ def cal_log_gamma(log_alpha, log_beta, log_likelihood, log_state={}):
 
 def cal_log_epsilon(log_prob_transition, log_Ey, log_alpha, log_beta, log_likelihood, log_state={}):
     """
-    The function to calculate the log of the posterial joint probability
+    The function to calculate the log of the posterior joint probability
     of two consecutive timestamps
     Parameters
     ----------
@@ -220,8 +220,8 @@ def cal_log_epsilon(log_prob_transition, log_Ey, log_alpha, log_beta, log_likeli
     Returns
     -------
     log_epsilon : array-like of shape (t-1, k, k)
-        the log of the posterial probability of two consecutive timestamps.
-        log_gamma_{t, i, j} is the posterial log of the probability of
+        the log of the posterior probability of two consecutive timestamps.
+        log_gamma_{t, i, j} is the posterior log of the probability of
         being in state i at timestamp t and
         being in state j at timestamp t+1.
         see https://en.wikipedia.org/wiki/Forward-backward_algorithm for details.
