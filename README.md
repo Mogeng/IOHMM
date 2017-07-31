@@ -21,7 +21,7 @@ Applications of IOHMM:
 * [A Generative Model of Urban Activities from Cellular Data](http://ieeexplore.ieee.org/document/7932990/)
 ## Installing
 ```shell
-pip install . --upgrade
+pip install IOHMM
 ```
 
 ## Examples
