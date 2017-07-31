@@ -282,7 +282,7 @@ class BaseIOHMM(object):
                     for lg in self.log_gammas:
                         lg[:, st] = np.random.rand(lg.shape[0])
             for st in range(self.num_states):
-                if np.exp(np.hstack([le[:, st, :] for le in self.log_epsilons])).sum() < EPS:
+                if np.exp(np.vstack([le[:, st, :] for le in self.log_epsilons])).sum() < EPS:
                     # there is no any sample associated with this state
                     for le in self.log_epsilons:
                         le[:, st, :] = np.random.rand(le.shape[0], self.num_states)
