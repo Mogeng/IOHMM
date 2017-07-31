@@ -1,15 +1,13 @@
-#!/usr/bin/env python
-
-# Copyright 2017 Mogeng Yin | https://www.apache.org/licenses/LICENSE-2.0
-
 from setuptools import setup
 
 setup(
     name="IOHMM",
     version="0.0.0",
-    description='Input Output Hidden Markov Models',
+    description='A python library for Input Output Hidden Markov Models',
+    url='https://github.com/Mogeng/IOHMM',
     author='Mogeng Yin',
     author_email='mogengyin@berkeley.edu',
+    license='BSD License',
     packages=['IOHMM'],
     install_requires=[
         'numpy>=1.11.0',
@@ -28,5 +26,28 @@ setup(
         ]
     },
     zip_safe=True,
-    keywords='sequence learning',
+    keywords=[
+        'python',
+        'hidden-markov-model',
+        'graphical-models',
+        'sequence-to-sequence',
+        'machine-learning',
+        'linear-models',
+        'sequence-labeling',
+        'supervised-learning',
+        'semi-supervised-learning',
+        'unsupervised-learning',
+        'time-series',
+        'scikit-learn',
+        'statsmodels'],
+    classifiers=[
+        'Development Status :: 2 - Pre-Alpha',
+        'Environment :: Console',
+        'Intended Audience :: Science/Research',
+        'Intended Audience :: End Users/Desktop',
+        'Intended Audience :: Developers',
+        'Topic :: Scientific/Engineering',
+        'License :: OSI Approved :: BSD License',
+        'Programming Language :: Python :: 2.7'
+    ],
 )
