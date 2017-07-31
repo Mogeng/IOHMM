@@ -26,7 +26,7 @@ setup(
         ]
     },
     zip_safe=True,
-    keywords=[
+    keywords=' '.join([
         'python',
         'hidden-markov-model',
         'graphical-models',
@@ -39,7 +39,7 @@ setup(
         'unsupervised-learning',
         'time-series',
         'scikit-learn',
-        'statsmodels'],
+        'statsmodels']),
     classifiers=[
         'Development Status :: 2 - Pre-Alpha',
         'Environment :: Console',
