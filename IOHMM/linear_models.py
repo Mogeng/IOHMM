@@ -640,7 +640,7 @@ class OLS(BaseModel):
                 stderr = np.zeros((self.n_targets, X_train.shape[1]))
                 try:
                     XWX_inverse_XW_sqrt = np.linalg.inv(np.dot(wexog.T, wexog)).dot(wexog.T)
-                except:
+                except np.linalg.linalg.LinAlgError:
                     logging.warning('Covariance matrix is singular, cannot estimate stderr.')
                     return None
                 sqrt_diag_XWX_inverse_XW_sqrt_W_XWX_inverse_XW_sqrt = np.sqrt(np.diag(

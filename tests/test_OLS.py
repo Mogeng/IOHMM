@@ -253,7 +253,7 @@ class UnivariateOLSTests(unittest.TestCase):
         # coef
         self.assertEqual(self.model.coef.shape, (1, 7))
         # scale
-        self.assertAlmostEqual(self.model.dispersion, np.array([[0]]), places=6)
+        np.testing.assert_array_equal(self.model.dispersion, np.array([[0]]))
         # loglike_per_sample
         np.testing.assert_array_equal(self.model.loglike_per_sample(
             self.data_longley.exog[0:1, :], self.data_longley.endog[0:1, ]), np.array([0]))
