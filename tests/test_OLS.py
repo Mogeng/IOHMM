@@ -1,4 +1,7 @@
+from __future__ import print_function
+from __future__ import division
 # import json
+from past.utils import old_div
 import unittest
 
 
@@ -51,7 +54,7 @@ class UnivariateOLSTests(unittest.TestCase):
         # std.err of coefficient (calibrated by df_resid)
         self.assertEqual(self.model.stderr.shape, (1, 7))
         np.testing.assert_array_almost_equal(
-            self.model.stderr / np.sqrt(9. / self.data_longley.exog.shape[0]),
+            old_div(self.model.stderr, np.sqrt(old_div(9., self.data_longley.exog.shape[0]))),
             np.array([890420.383607373, 84.9149257747669, 0.03349,
                       0.488399681651699, 0.214274163161675, 0.226073200069370,
                       455.478499142212]).reshape(1, -1),
@@ -59,7 +62,7 @@ class UnivariateOLSTests(unittest.TestCase):
         # scale
         self.assertEqual(self.model.dispersion.shape, (1, 1))
         np.testing.assert_array_almost_equal(
-            self.model.dispersion / (9. / self.data_longley.exog.shape[0]),
+            old_div(self.model.dispersion, (old_div(9., self.data_longley.exog.shape[0]))),
             np.array([[92936.0061673238]]),
             decimal=3)
         # predict
@@ -107,10 +110,10 @@ class UnivariateOLSTests(unittest.TestCase):
         self.model.fit(self.data_longley.exog, self.data_longley.endog, sample_weight=0.5)
 
         # coefficient
-        print self.model.coef
-        print self.model.dispersion
-        print self.data_longley.endog.reshape(-1, 1) - self.model.predict(self.data_longley.exog)
-        print self.model.loglike(self.data_longley.exog, self.data_longley.endog)
+        print(self.model.coef)
+        print(self.model.dispersion)
+        print(self.data_longley.endog.reshape(-1, 1) - self.model.predict(self.data_longley.exog))
+        print(self.model.loglike(self.data_longley.exog, self.data_longley.endog))
         np.testing.assert_array_almost_equal(
             self.model.coef,
             np.array([-2.0172203, -52.14364269, 0.07089677, -0.42552125,
@@ -121,7 +124,7 @@ class UnivariateOLSTests(unittest.TestCase):
         # scale
         self.assertEqual(self.model.dispersion.shape, (1, 1))
         np.testing.assert_array_almost_equal(
-            self.model.dispersion / (9. / self.data_longley.exog.shape[0]),
+            old_div(self.model.dispersion, (old_div(9., self.data_longley.exog.shape[0]))),
             np.array([[250870.081]]),
             decimal=3)
         # predict
@@ -173,16 +176,15 @@ class UnivariateOLSTests(unittest.TestCase):
             decimal=3)
         # std.err of coefficient (calibrated by df_resid)
         np.testing.assert_array_almost_equal(
-            self.model.stderr / np.sqrt(9. / self.data_longley.exog.shape[0]),
+            old_div(self.model.stderr, np.sqrt(old_div(9., self.data_longley.exog.shape[0]))),
             np.array((890420.383607373, 84.9149257747669, 0.334910077722432E-01,
                       0.488399681651699, 0.214274163161675, 0.226073200069370,
                       455.478499142212)).reshape(1, -1),
             decimal=1)
         # scale
-        self.assertAlmostEqual(
-            self.model.dispersion / (9. / self.data_longley.exog.shape[0]),
-            np.array((92936.0061673238)),
-            places=3)
+        np.testing.assert_array_almost_equal(
+            old_div(self.model.dispersion, (old_div(9., self.data_longley.exog.shape[0]))),
+            np.array((92936.0061673238)))
         # predict
         np.testing.assert_array_almost_equal(
             self.data_longley.endog.reshape(-1, 1) - self.model.predict(self.data_longley.exog),
@@ -267,13 +269,13 @@ class UnivariateOLSTests(unittest.TestCase):
             coef=None, stderr=None,  dispersion=None)
         X = np.hstack([self.data_longley.exog[:, 0:1], self.data_longley.exog[:, 0:1]])
         self.model_col.fit(X,
-                           self.data_longley.endog, sample_weight=0.5)
+                           self.data_longley.endog, sample_weight=0.8)
         self.model = OLS(
             solver='pinv', fit_intercept=False, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
         self.model.fit(self.data_longley.exog[:, 0:1],
-                       self.data_longley.endog, sample_weight=0.5)
+                       self.data_longley.endog, sample_weight=0.8)
         # coef
         np.testing.assert_array_almost_equal(
             self.model_col.coef, np.array([319.47969664, 319.47969664]).reshape(1, -1), decimal=3)
@@ -307,11 +309,11 @@ class IndependentMultivariateOLSTests(unittest.TestCase):
             coef=None, stderr=None,  dispersion=None)
         self.model.fit(self.X, self.Y)
         # coefficient
-        print self.model.coef
-        print self.model.dispersion
-        print self.model.stderr
-        print self.Y - self.model.predict(self.X)
-        print self.model.loglike(self.X, self.Y)
+        print(self.model.coef)
+        print(self.model.dispersion)
+        print(self.model.stderr)
+        print(self.Y - self.model.predict(self.X))
+        print(self.model.loglike(self.X, self.Y))
 
         self.assertEqual(self.model.coef.shape, (2, 2))
         np.testing.assert_array_almost_equal(
@@ -365,9 +367,9 @@ class IndependentMultivariateOLSTests(unittest.TestCase):
             coef=None, stderr=None,  dispersion=None)
         self.model.fit(self.X, self.Y)
         # coefficient
-        print self.model.coef
-        print self.model.dispersion
-        print self.model.loglike(self.X, self.Y)
+        print(self.model.coef)
+        print(self.model.dispersion)
+        print(self.model.loglike(self.X, self.Y))
 
         self.assertEqual(self.model.coef.shape, (2, 2))
         np.testing.assert_array_almost_equal(
@@ -401,10 +403,10 @@ class IndependentMultivariateOLSTests(unittest.TestCase):
             coef=None, stderr=None,  dispersion=None)
         self.model.fit(self.X, self.Y, sample_weight=0.5)
         # coefficient
-        print self.model.coef
-        print self.model.dispersion
-        print self.model.stderr
-        print self.model.loglike(self.X, self.Y, sample_weight=0.5)
+        print(self.model.coef)
+        print(self.model.dispersion)
+        print(self.model.stderr)
+        print(self.model.loglike(self.X, self.Y, sample_weight=0.5))
 
         self.assertEqual(self.model.coef.shape, (2, 2))
         np.testing.assert_array_almost_equal(
@@ -429,7 +431,7 @@ class IndependentMultivariateOLSTests(unittest.TestCase):
         # loglike/_per_sample
         self.assertAlmostEqual(
             self.model.loglike(self.X, self.Y, 0.5),
-            -2758.54387369 / 2.,
+            old_div(-2758.54387369, 2.),
             places=3)
 
         self.assertEqual(
@@ -556,7 +558,7 @@ class PerfectCorrelationMultivariateOLSTests(unittest.TestCase):
         # std.err of coefficient (calibrated by df_resid)
         self.assertEqual(self.model.stderr.shape, (2, 7))
         np.testing.assert_array_almost_equal(
-            self.model.stderr / np.sqrt(9. / self.data_longley.exog.shape[0]),
+            old_div(self.model.stderr, np.sqrt(old_div(9., self.data_longley.exog.shape[0]))),
             np.array([[890420.383607373, 84.9149257747669, 0.03349,
                        0.488399681651699, 0.214274163161675, 0.226073200069370,
                        455.478499142212],
@@ -567,7 +569,7 @@ class PerfectCorrelationMultivariateOLSTests(unittest.TestCase):
         # scale
         self.assertEqual(self.model.dispersion.shape, (2, 2))
         np.testing.assert_array_almost_equal(
-            self.model.dispersion / (9. / self.data_longley.exog.shape[0]),
+            old_div(self.model.dispersion, (old_div(9., self.data_longley.exog.shape[0]))),
             np.array([[92936.0061673238, 92936.0061673238],
                       [92936.0061673238, 92936.0061673238]]),
             decimal=3)
@@ -612,7 +614,7 @@ class PerfectCorrelationMultivariateOLSTests(unittest.TestCase):
         # scale
         self.assertEqual(self.model.dispersion.shape, (2, 2))
         np.testing.assert_array_almost_equal(
-            self.model.dispersion / (9. / self.data_longley.exog.shape[0]),
+            old_div(self.model.dispersion, (old_div(9., self.data_longley.exog.shape[0]))),
             np.array([[250870.081, 250870.081],
                       [250870.081, 250870.081]]),
             decimal=3)
@@ -664,7 +666,7 @@ class PerfectCorrelationMultivariateOLSTests(unittest.TestCase):
             decimal=3)
         # std.err of coefficient (calibrated by df_resid)
         np.testing.assert_array_almost_equal(
-            self.model.stderr / np.sqrt(9. / self.data_longley.exog.shape[0]),
+            old_div(self.model.stderr, np.sqrt(old_div(9., self.data_longley.exog.shape[0]))),
             np.array(((890420.383607373, 84.9149257747669, 0.334910077722432E-01,
                        0.488399681651699, 0.214274163161675, 0.226073200069370,
                        455.478499142212),
@@ -674,7 +676,7 @@ class PerfectCorrelationMultivariateOLSTests(unittest.TestCase):
             decimal=1)
         # scale
         np.testing.assert_array_almost_equal(
-            self.model.dispersion / (9. / self.data_longley.exog.shape[0]),
+            old_div(self.model.dispersion, (old_div(9., self.data_longley.exog.shape[0]))),
             np.array(((92936.0061673238, 92936.0061673238),
                       (92936.0061673238, 92936.0061673238))),
             decimal=3)
@@ -758,13 +760,13 @@ class PerfectCorrelationMultivariateOLSTests(unittest.TestCase):
             coef=None, stderr=None,  dispersion=None)
         X = np.hstack([self.X[:, 0:1], self.X[:, 0:1]])
         self.model_col.fit(X,
-                           self.Y, sample_weight=0.5)
+                           self.Y, sample_weight=0.8)
         self.model = OLS(
             solver='pinv', fit_intercept=False, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
         self.model.fit(self.X[:, 0:1],
-                       self.Y, sample_weight=0.5)
+                       self.Y, sample_weight=0.8)
         # coef
         np.testing.assert_array_almost_equal(
             self.model_col.coef, np.array([[319.47969664, 319.47969664],

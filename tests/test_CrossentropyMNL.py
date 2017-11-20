@@ -1,3 +1,6 @@
+from __future__ import division
+from builtins import range
+from past.utils import old_div
 import unittest
 
 
@@ -222,7 +225,7 @@ class CrossEntropyMNLBinaryTests(unittest.TestCase):
         # loglike/_per_sample
         self.assertAlmostEqual(
             self.model.loglike(self.data_spector.exog, self.y, sample_weight=.5),
-            -12.8896334653335 / 2.,
+            old_div(-12.8896334653335, 2.),
             places=3)
 
     def test_lr_disturbed_sample_weight_all_half(self):
@@ -247,7 +250,7 @@ class CrossEntropyMNLBinaryTests(unittest.TestCase):
         # loglike/_per_sample
         self.assertAlmostEqual(
             self.model.loglike(self.data_spector.exog, self.y_disturbed, sample_weight=.5),
-            -13.366314173353134 / 2.,
+            old_div(-13.366314173353134, 2.),
             places=3)
 
     def test_lr_sample_weight_all_zero(self):
@@ -405,8 +408,8 @@ class CrossEntropyMNLMultinomialTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.data_anes96 = sm.datasets.anes96.load()
-        cls.y = label_binarize(cls.data_anes96.endog, classes=range(7))
-        cls.y_disturbed = (cls.y + 0.01) / 1.07
+        cls.y = label_binarize(cls.data_anes96.endog, classes=list(range(7)))
+        cls.y_disturbed = old_div((cls.y + 0.01), 1.07)
 
     def test_label_encoder(self):
         x = np.array([[1, 2, 3], [4, 5, 6], [7, 8, 9]])
@@ -471,7 +474,7 @@ class CrossEntropyMNLMultinomialTests(unittest.TestCase):
             self.model_from_json.coef,
             decimal=3)
         np.testing.assert_array_almost_equal(
-            self.model.classes, np.array(range(7)), decimal=3)
+            self.model.classes, np.array(list(range(7))), decimal=3)
         self.assertEqual(self.model.n_classes, 7)
 
     def test_lr_disturbed(self):
@@ -543,7 +546,7 @@ class CrossEntropyMNLMultinomialTests(unittest.TestCase):
         # loglike/_per_sample
         self.assertAlmostEqual(
             self.model.loglike(self.data_anes96.exog, self.y, sample_weight=.5),
-            -1461.92274725 / 2.,
+            old_div(-1461.92274725, 2.),
             places=3)
 
     def test_lr_disturbed_sample_weight_all_half(self):
@@ -566,7 +569,7 @@ class CrossEntropyMNLMultinomialTests(unittest.TestCase):
         # loglike/_per_sample
         self.assertAlmostEqual(
             self.model.loglike(self.data_anes96.exog, self.y_disturbed, sample_weight=.5),
-            -1516.50148 / 2.,
+            old_div(-1516.50148, 2.),
             places=3)
 
     def test_lr_sample_weight_all_zero(self):
@@ -633,10 +636,10 @@ class CrossEntropyMNLMultinomialTests(unittest.TestCase):
             self.data_anes96.exog[6:9, :], self.y[6:9, ]),
             np.array([-0.015, -0.091, -0.095]), decimal=3)
         np.testing.assert_array_almost_equal(self.model.loglike_per_sample(
-            self.data_anes96.exog[6:9, :], label_binarize([3, 1, 4], range(7))),
+            self.data_anes96.exog[6:9, :], label_binarize([3, 1, 4], list(range(7)))),
             np.array([-4.201, -5.094, -2.825]), decimal=3)
         np.testing.assert_array_almost_equal(self.model.loglike_per_sample(
-            self.data_anes96.exog[6:9, :], label_binarize([3, 0, 5], range(7))),
+            self.data_anes96.exog[6:9, :], label_binarize([3, 0, 5], list(range(7)))),
             np.array([-4.201, -7.352, -8.957]), decimal=3)
 
     def test_lr_disturbed_three_data_point(self):
@@ -654,10 +657,10 @@ class CrossEntropyMNLMultinomialTests(unittest.TestCase):
             self.data_anes96.exog[6:9, :], self.y_disturbed[6:9, ]),
             np.array([-0.336, -0.389, -0.398]), decimal=3)
         np.testing.assert_array_almost_equal(self.model.loglike_per_sample(
-            self.data_anes96.exog[6:9, :], label_binarize([3, 1, 4], range(7))),
+            self.data_anes96.exog[6:9, :], label_binarize([3, 1, 4], list(range(7)))),
             np.array([-3.415, -4.506, -2.367]), decimal=3)
         np.testing.assert_array_almost_equal(self.model.loglike_per_sample(
-            self.data_anes96.exog[6:9, :], label_binarize([3, 0, 5], range(7))),
+            self.data_anes96.exog[6:9, :], label_binarize([3, 0, 5], list(range(7)))),
             np.array([-3.415, -4.492, -4.301]), decimal=3)
 
     def test_lr_multicolinearty(self):

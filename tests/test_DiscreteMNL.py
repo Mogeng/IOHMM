@@ -1,3 +1,7 @@
+from __future__ import print_function
+from __future__ import division
+from builtins import range
+from past.utils import old_div
 import unittest
 
 
@@ -156,7 +160,7 @@ class DiscreteMNLBinaryTests(unittest.TestCase):
         # loglike/_per_sample
         self.assertAlmostEqual(
             self.model.loglike(self.data_spector.exog, self.data_spector.endog, sample_weight=.5),
-            -12.8896334653335 / 2.,
+            old_div(-12.8896334653335, 2.),
             places=3)
 
     def test_lr_sample_weight_all_zero(self):
@@ -228,7 +232,7 @@ class DiscreteMNLBinaryTests(unittest.TestCase):
         np.testing.assert_array_almost_equal(self.model.loglike_per_sample(
             self.data_spector.exog[3:5, :], self.data_spector.endog[3:5, ]),
             np.array([0, 0]), decimal=3)
-        print self.model.classes, 'class'
+        print(self.model.classes, 'class')
         np.testing.assert_array_almost_equal(self.model.loglike_per_sample(
             self.data_spector.exog[3:5, :], np.array([0, 2])),
             np.array([0, -np.Infinity]), decimal=3)
@@ -293,7 +297,7 @@ class DiscreteMNLMultinomialTests(unittest.TestCase):
             self.model_from_json.coef,
             decimal=3)
         np.testing.assert_array_almost_equal(
-            self.model.classes, np.array(range(7)), decimal=3)
+            self.model.classes, np.array(list(range(7))), decimal=3)
         self.assertEqual(self.model.n_classes, 7)
 
     def test_lr_regularized(self):
@@ -332,7 +336,7 @@ class DiscreteMNLMultinomialTests(unittest.TestCase):
         # loglike/_per_sample
         self.assertAlmostEqual(
             self.model.loglike(self.data_anes96.exog, self.data_anes96.endog, sample_weight=.5),
-            -1461.92274725 / 2.,
+            old_div(-1461.92274725, 2.),
             places=3)
 
     def test_lr_sample_weight_all_zero(self):

@@ -1,3 +1,7 @@
+from __future__ import print_function
+from __future__ import division
+from builtins import range
+from past.utils import old_div
 import json
 import unittest
 
@@ -20,7 +24,7 @@ class SemiSupervisedIOHMMTests(unittest.TestCase):
     def _mock_states(cls):
         states = {}
         corr = np.array(cls.data_speed['corr'])
-        for i in range(int(len(corr) / 2)):
+        for i in range(int(old_div(len(corr), 2))):
             if corr[i] == 'cor':
                 states[i] = np.array([0, 1, 0, 0])
                 cls.data_speed.set_value(i, 'rt', 1)
@@ -161,7 +165,7 @@ class SemiSupervisedIOHMMTests(unittest.TestCase):
                     'properties': {}
                 },
             ]})
-        print json_dict['properties']['model_initial']
+        print(json_dict['properties']['model_initial'])
         self.model = SemiSupervisedIOHMM.from_config(json_dict)
         self.assertEqual(type(self.model), SemiSupervisedIOHMM)
         self.model.set_data([[self.data_speed, self.states]])
