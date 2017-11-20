@@ -40,7 +40,11 @@ Note:
 
 from __future__ import division
 
-import cPickle as pickle
+from future import standard_library
+
+from builtins import range
+from builtins import object
+import pickle as pickle
 import logging
 import numbers
 import os
@@ -54,7 +58,7 @@ from sklearn.preprocessing import label_binarize
 import statsmodels.api as sm
 from statsmodels.genmod.families import Poisson, Binomial
 from statsmodels.tools import add_constant
-
+standard_library.install_aliases()
 EPS = np.finfo(float).eps
 
 
@@ -520,12 +524,13 @@ class GLM(BaseModel):
         -------
         GLM object: a GLM object specified by the json_dict and other arguments
         """
-        return cls(
-            solver=solver, fit_intercept=fit_intercept, est_stderr=est_stderr,
-            reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,
-            coef=coef, stderr=stderr, tol=tol, max_iter=max_iter,
-            family=pickle.load(open(json_dict['properties']['family']['path'])),
-            dispersion=np.load(json_dict['properties']['dispersion']['path']))
+        with open(json_dict['properties']['family']['path'], 'rb') as f:
+            return cls(
+                solver=solver, fit_intercept=fit_intercept, est_stderr=est_stderr,
+                reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,
+                coef=coef, stderr=stderr, tol=tol, max_iter=max_iter,
+                family=pickle.load(f),
+                dispersion=np.load(json_dict['properties']['dispersion']['path']))
 
 
 class OLS(BaseModel):
@@ -635,7 +640,7 @@ class OLS(BaseModel):
                 stderr = np.zeros((self.n_targets, X_train.shape[1]))
                 try:
                     XWX_inverse_XW_sqrt = np.linalg.inv(np.dot(wexog.T, wexog)).dot(wexog.T)
-                except:
+                except np.linalg.linalg.LinAlgError:
                     logging.warning('Covariance matrix is singular, cannot estimate stderr.')
                     return None
                 sqrt_diag_XWX_inverse_XW_sqrt_W_XWX_inverse_XW_sqrt = np.sqrt(np.diag(

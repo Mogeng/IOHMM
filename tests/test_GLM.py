@@ -1,3 +1,6 @@
+from __future__ import print_function
+from __future__ import division
+from past.utils import old_div
 import unittest
 
 
@@ -40,9 +43,9 @@ class PoissonTests(unittest.TestCase):
             decimal=3)
         # std.err of coefficient (calibrated by df_resid)
         self.assertEqual(self.model.stderr.shape, (7, ))
-        print self.model._model.df_resid
-        print self.model.dispersion
-        print self.model.stderr
+        print(self.model._model.df_resid)
+        print(self.model.dispersion)
+        print(self.model.stderr)
         np.testing.assert_array_almost_equal(
             self.model.stderr,
             np.array((4.146850e+00, 5.187132e-05, 7.940193e-02, 2.291926e-02, 4.375164e-01,
@@ -170,7 +173,7 @@ class PoissonTests(unittest.TestCase):
         # loglike/_per_sample
         self.assertAlmostEqual(
             self.model.loglike(self.X, self.Y, sample_weight=0.5),
-            -31.92732869482515 / 2.,
+            old_div(-31.92732869482515, 2.),
             places=3)
 
         self.assertAlmostEqual(
@@ -303,7 +306,7 @@ class GammaTests(unittest.TestCase):
         # std.err of coefficient (calibrated by df_resid)
         self.assertEqual(self.model.stderr.shape, (8, ))
         np.testing.assert_array_almost_equal(
-            self.model.stderr * np.sqrt(32. / 24.),
+            self.model.stderr * np.sqrt(old_div(32., 24.)),
             np.array((1.147922e-02, 1.621577e-05, 5.320802e-04, 2.711664e-05, 4.057691e-05,
                       1.236569e-07, 2.402534e-04, 7.460253e-07)),
             decimal=2)
@@ -409,7 +412,7 @@ class GammaTests(unittest.TestCase):
         # loglike/_per_sample
         self.assertAlmostEqual(
             self.model.loglike(self.X, self.Y, sample_weight=0.5),
-            -82.47352 / 2.,
+            old_div(-82.47352, 2.),
             places=2)
 
         self.assertAlmostEqual(
@@ -539,7 +542,7 @@ class GaussianTests(unittest.TestCase):
         # std.err of coefficient (calibrated by df_resid)
         self.assertEqual(self.model.stderr.shape, (7, ))
         np.testing.assert_array_almost_equal(
-            self.model.stderr * np.sqrt(16. / 9.),
+            self.model.stderr * np.sqrt(old_div(16., 9.)),
             np.array((8.90420384e+05, 8.49149258e+01, 3.34910078e-02, 4.88399682e-01,
                       2.14274163e-01, 2.26073200e-01, 4.55478499e+02)),
             decimal=3)
@@ -639,7 +642,7 @@ class GaussianTests(unittest.TestCase):
         # loglike/_per_sample
         self.assertAlmostEqual(
             self.model.loglike(self.X, self.Y, sample_weight=0.5),
-            -109.61743480847952 / 2.,
+            old_div(-109.61743480847952, 2.),
             places=3)
 
         self.assertAlmostEqual(
@@ -771,7 +774,7 @@ class BinomialTests(unittest.TestCase):
             decimal=3)
         # std.err of coefficient (calibrated by df_resid)
         self.assertEqual(self.model.stderr.shape, (21, ))
-        print self.model.stderr
+        print(self.model.stderr)
         np.testing.assert_array_almost_equal(
             self.model.stderr,
             np.array((1.546712e+00, 4.339467e-04, 6.013714e-04, 7.435499e-04, 4.338655e-04,
@@ -907,9 +910,9 @@ class BinomialTests(unittest.TestCase):
             decimal=3)
         # std.err of coefficient (calibrated by df_resid)
         self.assertEqual(self.model.stderr.shape, (21, ))
-        print self.model.stderr
+        print(self.model.stderr)
         np.testing.assert_array_almost_equal(
-            self.model.stderr / np.sqrt(2),
+            old_div(self.model.stderr, np.sqrt(2)),
             np.array((1.546712e+00, 4.339467e-04, 6.013714e-04, 7.435499e-04, 4.338655e-04,
                       2.994576e-02, 5.713824e-02, 1.392359e-02, 3.168109e-01,
                       6.126411e-02, 3.270139e-02, 1.253877e-03, 2.254633e-04,
@@ -985,7 +988,7 @@ class BinomialTests(unittest.TestCase):
         # loglike/_per_sample
         self.assertAlmostEqual(
             self.model.loglike(self.X, self.Y, sample_weight=0.5),
-            -2998.61255899391 / 2.,
+            old_div(-2998.61255899391, 2.),
             places=3)
 
         self.assertAlmostEqual(
@@ -1055,7 +1058,7 @@ class BinomialTests(unittest.TestCase):
         # scale
         self.assertEqual(self.model.dispersion, 1)
         # loglike_per_sample
-        print self.Y[0:1, ]
+        print(self.Y[0:1, ])
         np.testing.assert_array_almost_equal(self.model.loglike_per_sample(
             self.X[0:1, :], self.Y[0:1, ]), np.array([-3.565]), decimal=3)
         np.testing.assert_array_almost_equal(self.model.loglike_per_sample(
@@ -1120,12 +1123,12 @@ class InverseGaussianTests(unittest.TestCase):
             self.model.coef,
             np.array((1.0359574, 0.4519770, -0.2508288)),
             decimal=3)
-        print self.model.stderr
-        print self.model.dispersion
+        print(self.model.stderr)
+        print(self.model.dispersion)
         # std.err of coefficient (calibrated by df_resid)
         self.assertEqual(self.model.stderr.shape, (3, ))
         np.testing.assert_array_almost_equal(
-            self.model.stderr * np.sqrt(5000. / 4997.),
+            self.model.stderr * np.sqrt(old_div(5000., 4997.)),
             np.array((0.03429943, 0.03148291, 0.02237211)),
             decimal=3)
         # scale
@@ -1187,8 +1190,8 @@ class InverseGaussianTests(unittest.TestCase):
             self.model.coef,
             np.array((1.0359574, 0.4519770, -0.2508288)),
             decimal=3)
-        print self.model.stderr
-        print self.model.dispersion
+        print(self.model.stderr)
+        print(self.model.dispersion)
         # std.err of coefficient (calibrated by df_resid)
         self.assertEqual(self.model.stderr.shape, (3, ))
         np.testing.assert_array_almost_equal(
@@ -1205,7 +1208,7 @@ class InverseGaussianTests(unittest.TestCase):
         # loglike/_per_sample
         self.assertAlmostEqual(
             self.model.loglike(self.X, self.Y, sample_weight=0.5),
-            -2525.70955823223 / 2.,
+            old_div(-2525.70955823223, 2.),
             places=1)
 
         self.assertAlmostEqual(
@@ -1265,7 +1268,7 @@ class InverseGaussianTests(unittest.TestCase):
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
-        print self.Y[0:1, ]
+        print(self.Y[0:1, ])
         self.model.fit(self.X[0:1, :],
                        self.Y[0:1, ], sample_weight=0.5)
         # coef
@@ -1337,12 +1340,12 @@ class NegativeBinomialTests(unittest.TestCase):
             np.array([-6.44847076, -0.0268147,  1.25103364,  2.91070663,
                       -0.34799563,  0.00659808, -0.31303026]),
             decimal=2)
-        print self.model.stderr
-        print self.model.dispersion
+        print(self.model.stderr)
+        print(self.model.dispersion)
         # std.err of coefficient (calibrated by df_resid)
         self.assertEqual(self.model.stderr.shape, (7, ))
         np.testing.assert_array_almost_equal(
-            self.model.stderr * np.sqrt(20. / 13.),
+            self.model.stderr * np.sqrt(old_div(20., 13.)),
             np.array([1.99557656e+00,  1.99956263e-02, 4.76820254e-01,
                       6.48362654e-01, 4.17956107e-01, 1.41512690e-03, 1.07770186e-01]),
             decimal=3)
@@ -1414,8 +1417,8 @@ class NegativeBinomialTests(unittest.TestCase):
             np.array([-6.44847076, -0.0268147,  1.25103364,  2.91070663,
                       -0.34799563,  0.00659808, -0.31303026]),
             decimal=2)
-        print self.model.stderr
-        print self.model.dispersion
+        print(self.model.stderr)
+        print(self.model.dispersion)
         # std.err of coefficient (calibrated by df_resid)
         self.assertEqual(self.model.stderr.shape, (7, ))
         np.testing.assert_array_almost_equal(
@@ -1437,7 +1440,7 @@ class NegativeBinomialTests(unittest.TestCase):
         # loglike/_per_sample
         self.assertAlmostEqual(
             self.model.loglike(self.X, self.Y, sample_weight=0.5),
-            -101.33286676188968 / 2.,
+            old_div(-101.33286676188968, 2.),
             places=1)
 
         self.assertAlmostEqual(
@@ -1496,7 +1499,7 @@ class NegativeBinomialTests(unittest.TestCase):
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
-        print self.Y[0:1, ]
+        print(self.Y[0:1, ])
         self.model.fit(self.X[0:1, :],
                        self.Y[0:1, ], sample_weight=0.5)
         # coef

@@ -13,6 +13,7 @@ so that it is more robust to long sequences.
 '''
 from __future__ import division
 
+from builtins import range
 import warnings
 
 

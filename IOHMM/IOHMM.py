@@ -23,6 +23,9 @@ Features:
 '''
 
 from __future__ import division
+from __future__ import absolute_import
+from builtins import range
+from builtins import object
 from copy import deepcopy
 import logging
 import os
@@ -32,8 +35,8 @@ import warnings
 import numpy as np
 
 
-from forward_backward import forward_backward
-from linear_models import (GLM, OLS, DiscreteMNL, CrossEntropyMNL)
+from .forward_backward import forward_backward
+from .linear_models import (GLM, OLS, DiscreteMNL, CrossEntropyMNL)
 
 
 warnings.simplefilter("ignore")
@@ -591,7 +594,7 @@ class UnSupervisedIOHMM(BaseIOHMM):
         """
         assert all([df.shape[0] > 0 for df in dfs])
         self.num_seqs = len(dfs)
-        self.dfs_logStates = map(lambda x: [x, {}], dfs)
+        self.dfs_logStates = [[x, {}] for x in dfs]
         self._initialize(with_randomness=True)
 
     def to_json(self, path):
@@ -699,7 +702,7 @@ class SemiSupervisedIOHMM(UnSupervisedIOHMM):
         specified above.
         """
         self.num_seqs = len(dfs_states)
-        self.dfs_logStates = map(lambda x: [x[0], {k: np.log(x[1][k]) for k in x[1]}], dfs_states)
+        self.dfs_logStates = [[x[0], {k: np.log(x[1][k]) for k in x[1]}] for x in dfs_states]
         self._initialize(with_randomness=True)
 
 
@@ -742,5 +745,5 @@ class SupervisedIOHMM(BaseIOHMM):
         specified above.
         """
         self.num_seqs = len(dfs_states)
-        self.dfs_logStates = map(lambda x: [x[0], {k: np.log(x[1][k]) for k in x[1]}], dfs_states)
+        self.dfs_logStates = [[x[0], {k: np.log(x[1][k]) for k in x[1]}] for x in dfs_states]
         self._initialize(with_randomness=False)

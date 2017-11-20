@@ -3,7 +3,10 @@ The Wrapper of statsmodels one parameter exponential family distributions used b
 with the added functionality for log likelihood per sample. Loglikelihood per sample is
 going to be used in IOHMM to estimate emission probability.
 '''
+from __future__ import division
 
+from past.utils import old_div
+from builtins import object
 import numpy as np
 from scipy import special
 from statsmodels.genmod.families.family import (Poisson,
@@ -153,8 +156,8 @@ class GaussianWrapper(FamilyWrapper):
         log_p_{i} = - 1 / 2 * ((Y_i - mu_i)^2 / scale + log(2 * \pi * scale))
         """
         if scale > EPS:
-            return ((endog * mu - mu**2 / 2.) / scale -
-                    endog**2 / (2 * scale) - .5 * np.log(2 * np.pi * scale)).reshape(-1,)
+            return (old_div((endog * mu - old_div(mu**2, 2.)), scale) -
+                    old_div(endog**2, (2 * scale)) - .5 * np.log(2 * np.pi * scale)).reshape(-1,)
         else:
             log_p = np.zeros(endog.shape[0])
             log_p[~np.isclose(endog, mu)] = - np.Infinity
@@ -204,10 +207,10 @@ class GammaWrapper(FamilyWrapper):
                  \ln \Gamma(1 / scale))
         """
         if scale > EPS:
-            endog_mu = self.family._clean(endog / mu)
-            return (-(endog_mu - np.log(endog_mu) + scale *
-                      np.log(endog) + np.log(scale) + scale *
-                      special.gammaln(1. / scale)) / scale).reshape(-1,)
+            endog_mu = self.family._clean(old_div(endog, mu))
+            return (old_div(-(endog_mu - np.log(endog_mu) + scale *
+                              np.log(endog) + np.log(scale) + scale *
+                              special.gammaln(old_div(1., scale))), scale)).reshape(-1,)
         else:
             log_p = np.zeros(endog.shape[0])
             log_p[~np.isclose(endog, mu)] = - np.Infinity
@@ -271,14 +274,14 @@ class BinomialWrapper(FamilyWrapper):
         tmp = self.family.initialize(endog, 1)
         endog = tmp[0]
         if np.shape(self.family.n) == () and self.family.n == 1:
-            return scale * (endog * np.log(mu / (1 - mu) + 1e-200) +
+            return scale * (endog * np.log(old_div(mu, (1 - mu)) + 1e-200) +
                             np.log(1 - mu)).reshape(-1,)
         else:
             y = endog * self.family.n  # convert back to successes
             return scale * (special.gammaln(self.family.n + 1) -
                             special.gammaln(y + 1) -
                             special.gammaln(self.family.n - y + 1) + y *
-                            np.log(mu / (1 - mu)) + self.family.n *
+                            np.log(old_div(mu, (1 - mu))) + self.family.n *
                             np.log(1 - mu)).reshape(-1,)
 
 
@@ -324,7 +327,7 @@ class InverseGaussianWrapper(FamilyWrapper):
                  \mu_i^2 * scale) + \log(scale * Y_i^3) + \log(2 * \pi))
         """
         if scale > EPS:
-            return -.5 * ((endog - mu)**2 / (endog * mu**2 * scale) +
+            return -.5 * (old_div((endog - mu)**2, (endog * mu**2 * scale)) +
                           np.log(scale * endog**3) + np.log(2 * np.pi)).reshape(-1,)
         else:
             log_p = np.zeros(endog.shape[0])
@@ -383,13 +386,13 @@ class NegativeBinomialWrapper(FamilyWrapper):
         """
         if scale > EPS:
             lin_pred = self.family._link(mu)
-            constant = (special.gammaln(endog + 1 / self.family.alpha) -
-                        special.gammaln(endog + 1) - special.gammaln(1 / self.family.alpha))
+            constant = (special.gammaln(endog + old_div(1, self.family.alpha)) -
+                        special.gammaln(endog + 1) - special.gammaln(old_div(1, self.family.alpha)))
             exp_lin_pred = np.exp(lin_pred)
             return (endog * np.log(self.family.alpha * exp_lin_pred /
                                    (1 + self.family.alpha * exp_lin_pred)) -
-                    np.log(1 + self.family.alpha * exp_lin_pred) /
-                    self.family.alpha + constant).reshape(-1,)
+                    old_div(np.log(1 + self.family.alpha * exp_lin_pred),
+                            self.family.alpha) + constant).reshape(-1,)
         else:
             log_p = np.zeros(endog.shape[0])
             log_p[~np.isclose(endog, mu)] = - np.Infinity
