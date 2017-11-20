@@ -11,6 +11,7 @@ setup(
     packages=['IOHMM'],
     install_requires=[
         'numpy>=1.11.0',
+        'future>=0.16.0',
         'pandas>=0.19.0',
         'scikit-learn>=0.18.0',
         'scipy>=0.19.0',
