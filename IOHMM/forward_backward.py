@@ -18,7 +18,7 @@ import warnings
 
 
 import numpy as np
-from scipy.misc import logsumexp
+from scipy.special import logsumexp
 
 warnings.simplefilter("ignore")
 
