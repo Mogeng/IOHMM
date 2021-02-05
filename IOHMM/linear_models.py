@@ -314,8 +314,8 @@ class BaseModel(object):
             reg_method=json_dict['properties']['reg_method'],
             alpha=json_dict['properties']['alpha'],
             l1_ratio=json_dict['properties']['l1_ratio'],
-            coef=np.load(json_dict['properties']['coef']['path']),
-            stderr=np.load(json_dict['properties']['stderr']['path']))
+            coef=np.load(json_dict['properties']['coef']['path'], allow_pickle = True),
+            stderr=np.load(json_dict['properties']['stderr']['path'], allow_pickle = True))
 
 
 class GLM(BaseModel):
@@ -417,7 +417,7 @@ class GLM(BaseModel):
         self._model.df_resid = np.sum(sample_weight)
         if self.reg_method is None or self.alpha < EPS:
             fit_results = self._model.fit(
-                maxiter=self.max_iter, tol=self.tol, method=self.solver)
+                maxiter=self.max_iter, tol=self.tol, method=self.solver, wls_method='pinv')
         else:
             fit_results = self._model.fit_regularized(
                 method=self.reg_method, alpha=self.alpha,
@@ -469,7 +469,11 @@ class GLM(BaseModel):
         assert X.shape[0] == Y.shape[0]
         Y = self._transform_Y(Y)
         mu = self.predict(X)
-        return self.family.loglike_per_sample(Y, mu, scale=self.dispersion)
+        if isinstance(self.family.family, Binomial):
+            endog, _ = self.family.family.initialize(Y, 1.0)
+        else:
+            endog = Y
+        return self.family.loglike_per_sample(endog, mu, scale=self.dispersion)
 
     def to_json(self, path):
         """
@@ -530,7 +534,7 @@ class GLM(BaseModel):
                 reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,
                 coef=coef, stderr=stderr, tol=tol, max_iter=max_iter,
                 family=pickle.load(f),
-                dispersion=np.load(json_dict['properties']['dispersion']['path']))
+                dispersion=np.load(json_dict['properties']['dispersion']['path'], allow_pickle = True))
 
 
 class OLS(BaseModel):
@@ -783,7 +787,7 @@ class OLS(BaseModel):
                    reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,
                    coef=coef, stderr=stderr,
                    tol=tol, max_iter=max_iter,
-                   dispersion=np.load(json_dict['properties']['dispersion']['path']),
+                   dispersion=np.load(json_dict['properties']['dispersion']['path'], allow_pickle = True),
                    n_targets=json_dict['properties']['n_targets'])
 
 
@@ -1202,7 +1206,7 @@ class DiscreteMNL(BaseMNL):
             reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,
             coef=coef, stderr=stderr,
             tol=tol, max_iter=max_iter,
-            classes=np.load(json_dict['properties']['classes']['path']))
+            classes=np.load(json_dict['properties']['classes']['path'], allow_pickle = True))
 
 
 class CrossEntropyMNL(BaseMNL):

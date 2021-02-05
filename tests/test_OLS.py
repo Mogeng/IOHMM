@@ -110,10 +110,6 @@ class UnivariateOLSTests(unittest.TestCase):
         self.model.fit(self.data_longley.exog, self.data_longley.endog, sample_weight=0.5)
 
         # coefficient
-        print(self.model.coef)
-        print(self.model.dispersion)
-        print(self.data_longley.endog.reshape(-1, 1) - self.model.predict(self.data_longley.exog))
-        print(self.model.loglike(self.data_longley.exog, self.data_longley.endog))
         np.testing.assert_array_almost_equal(
             self.model.coef,
             np.array([-2.0172203, -52.14364269, 0.07089677, -0.42552125,
@@ -309,12 +305,6 @@ class IndependentMultivariateOLSTests(unittest.TestCase):
             coef=None, stderr=None,  dispersion=None)
         self.model.fit(self.X, self.Y)
         # coefficient
-        print(self.model.coef)
-        print(self.model.dispersion)
-        print(self.model.stderr)
-        print(self.Y - self.model.predict(self.X))
-        print(self.model.loglike(self.X, self.Y))
-
         self.assertEqual(self.model.coef.shape, (2, 2))
         np.testing.assert_array_almost_equal(
             self.model.coef,
@@ -367,10 +357,6 @@ class IndependentMultivariateOLSTests(unittest.TestCase):
             coef=None, stderr=None,  dispersion=None)
         self.model.fit(self.X, self.Y)
         # coefficient
-        print(self.model.coef)
-        print(self.model.dispersion)
-        print(self.model.loglike(self.X, self.Y))
-
         self.assertEqual(self.model.coef.shape, (2, 2))
         np.testing.assert_array_almost_equal(
             self.model.coef,
@@ -403,11 +389,6 @@ class IndependentMultivariateOLSTests(unittest.TestCase):
             coef=None, stderr=None,  dispersion=None)
         self.model.fit(self.X, self.Y, sample_weight=0.5)
         # coefficient
-        print(self.model.coef)
-        print(self.model.dispersion)
-        print(self.model.stderr)
-        print(self.model.loglike(self.X, self.Y, sample_weight=0.5))
-
         self.assertEqual(self.model.coef.shape, (2, 2))
         np.testing.assert_array_almost_equal(
             self.model.coef,
