@@ -2,7 +2,7 @@ from setuptools import setup
 
 setup(
     name="IOHMM",
-    version="0.0.2",
+    version="0.0.3",
     description='A python library for Input Output Hidden Markov Models',
     url='https://github.com/Mogeng/IOHMM',
     author='Mogeng Yin',
@@ -10,19 +10,19 @@ setup(
     license='BSD License',
     packages=['IOHMM'],
     install_requires=[
-        'numpy>=1.11.0',
-        'future>=0.16.0',
-        'pandas>=0.19.0',
-        'scikit-learn>=0.19.1',
-        'scipy>=0.19.0',
-        'statsmodels>=0.8.0'
+        'numpy >= 1.20.0',
+        'future >= 0.18.2',
+        'pandas >= 1.2.1',
+        'scikit-learn >= 0.24.1',
+        'scipy >= 1.6.0',
+        'statsmodels >= 0.12.2',
     ],
     extras_require={
         'tests': [
-            'flake8>=2.5.4',
-            'mock>=2.0.0',
-            'nose>=1.3.4',
-            'coveralls>=1.1',
+            'flake8>=3.8.4',
+            'mock>=3.9.1',
+            'nose>=1.3.7',
+            'coveralls>=3.0.0',
             'pytest',
         ]
     },
@@ -49,7 +49,8 @@ setup(
         'Intended Audience :: Developers',
         'Topic :: Scientific/Engineering',
         'License :: OSI Approved :: BSD License',
-        'Programming Language :: Python :: 2.7',
-        'Programming Language :: Python :: 3.6'
+        'Programming Language :: Python :: 3.7',
+        'Programming Language :: Python :: 3.8',
+        'Programming Language :: Python :: 3.9'
     ],
 )

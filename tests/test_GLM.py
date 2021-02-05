@@ -668,7 +668,6 @@ class GaussianTests(unittest.TestCase):
     def test_glm_one_data_point(self):
         pass
 
-
     def test_ols_multicolinearty(self):
         self.model_col = GLM(
             solver='irls', family=sm.families.Gaussian(),
@@ -1420,7 +1419,6 @@ class NegativeBinomialTests(unittest.TestCase):
     # corner cases
     def test_glm_one_data_point(self):
         pass
-
 
     def test_ols_multicolinearty(self):
         self.model_col = GLM(
