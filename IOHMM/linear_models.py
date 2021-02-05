@@ -53,7 +53,7 @@ import os
 import numpy as np
 from scipy.stats import multivariate_normal
 from sklearn import linear_model
-from sklearn.linear_model.base import _rescale_data
+from sklearn.linear_model._base import _rescale_data
 from sklearn.preprocessing import label_binarize
 import statsmodels.api as sm
 from statsmodels.genmod.families import Poisson, Binomial
@@ -314,8 +314,8 @@ class BaseModel(object):
             reg_method=json_dict['properties']['reg_method'],
             alpha=json_dict['properties']['alpha'],
             l1_ratio=json_dict['properties']['l1_ratio'],
-            coef=np.load(json_dict['properties']['coef']['path']),
-            stderr=np.load(json_dict['properties']['stderr']['path']))
+            coef=np.load(json_dict['properties']['coef']['path'], allow_pickle=True),
+            stderr=np.load(json_dict['properties']['stderr']['path'], allow_pickle=True))
 
 
 class GLM(BaseModel):
@@ -355,7 +355,7 @@ class GLM(BaseModel):
         coef: the coefficients if loading from trained model
         stderr: the std.err of coefficients if loading from trained model
 
-        family: GLM family in the family_wrapper
+        family: statsmodels.genmod.families.family.Family
         dispersion: dispersion/scale of the GLM
         -------
         """
@@ -368,7 +368,7 @@ class GLM(BaseModel):
         self.dispersion = dispersion
         if self.coef is not None:
             dummy_X = dummy_Y = dummy_weight = np.zeros(1)
-            self._model = sm.GLM(dummy_Y, dummy_X, family=self.family.family,
+            self._model = sm.GLM(dummy_Y, dummy_X, family=family,
                                  freq_weights=dummy_weight)
 
     def fit(self, X, Y, sample_weight=None):
@@ -387,7 +387,7 @@ class GLM(BaseModel):
             -------
             dispersion: float
             """
-            if isinstance(self.family.family, (Binomial, Poisson)):
+            if isinstance(self.family, (Binomial, Poisson)):
                 return 1.
             return self._model.scale
 
@@ -412,12 +412,12 @@ class GLM(BaseModel):
         X, sample_weight = self._transform_X_sample_weight(X, sample_weight=sample_weight)
         self._raise_error_if_sample_weight_sum_zero(sample_weight)
         Y = self._transform_Y(Y)
-        self._model = sm.GLM(Y, X, family=self.family.family, freq_weights=sample_weight)
+        self._model = sm.GLM(Y, X, family=self.family, freq_weights=sample_weight)
         # dof in weighted regression does not make sense, hard code it to the total weights
         self._model.df_resid = np.sum(sample_weight)
         if self.reg_method is None or self.alpha < EPS:
             fit_results = self._model.fit(
-                maxiter=self.max_iter, tol=self.tol, method=self.solver)
+                maxiter=self.max_iter, tol=self.tol, method=self.solver, wls_method='pinv')
         else:
             fit_results = self._model.fit_regularized(
                 method=self.reg_method, alpha=self.alpha,
@@ -469,7 +469,15 @@ class GLM(BaseModel):
         assert X.shape[0] == Y.shape[0]
         Y = self._transform_Y(Y)
         mu = self.predict(X)
-        return self.family.loglike_per_sample(Y, mu, scale=self.dispersion)
+        if isinstance(self.family, Binomial):
+            endog, _ = self.family.initialize(Y, 1.0)
+        else:
+            endog = Y
+        if self.dispersion > EPS:
+            return self.family.loglike_obs(endog, mu, scale=self.dispersion)
+        log_p = np.zeros(endog.shape[0])
+        log_p[~np.isclose(endog, mu)] = - np.Infinity
+        return log_p
 
     def to_json(self, path):
         """
@@ -530,7 +538,8 @@ class GLM(BaseModel):
                 reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,
                 coef=coef, stderr=stderr, tol=tol, max_iter=max_iter,
                 family=pickle.load(f),
-                dispersion=np.load(json_dict['properties']['dispersion']['path']))
+                dispersion=np.load(json_dict['properties']['dispersion']['path'],
+                                   allow_pickle=True))
 
 
 class OLS(BaseModel):
@@ -783,7 +792,8 @@ class OLS(BaseModel):
                    reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,
                    coef=coef, stderr=stderr,
                    tol=tol, max_iter=max_iter,
-                   dispersion=np.load(json_dict['properties']['dispersion']['path']),
+                   dispersion=np.load(json_dict['properties']['dispersion']['path'],
+                                      allow_pickle=True),
                    n_targets=json_dict['properties']['n_targets'])
 
 
@@ -1202,7 +1212,7 @@ class DiscreteMNL(BaseMNL):
             reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,
             coef=coef, stderr=stderr,
             tol=tol, max_iter=max_iter,
-            classes=np.load(json_dict['properties']['classes']['path']))
+            classes=np.load(json_dict['properties']['classes']['path'], allow_pickle=True))
 
 
 class CrossEntropyMNL(BaseMNL):

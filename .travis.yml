@@ -1,7 +1,8 @@
 language: python
 python:
-  - "2.7"
-  - "3.6"
+  - "3.7"
+  - "3.8"
+  - "3.9"
 
 # command to install dependencies
 install:
@@ -11,7 +12,7 @@ install:
 
 # command to execute test suite
 script:
- - flake8 --max-line-length=100
+ - flake8 .
  - nosetests --with-coverage --cover-package=IOHMM
 
 # Send results of tests to coveralls
