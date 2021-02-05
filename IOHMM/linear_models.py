@@ -355,7 +355,7 @@ class GLM(BaseModel):
         coef: the coefficients if loading from trained model
         stderr: the std.err of coefficients if loading from trained model
 
-        family: GLM family in the family_wrapper
+        family: https://www.statsmodels.org/stable/generated/statsmodels.genmod.families.family.Family.html
         dispersion: dispersion/scale of the GLM
         -------
         """
@@ -368,7 +368,7 @@ class GLM(BaseModel):
         self.dispersion = dispersion
         if self.coef is not None:
             dummy_X = dummy_Y = dummy_weight = np.zeros(1)
-            self._model = sm.GLM(dummy_Y, dummy_X, family=self.family.family,
+            self._model = sm.GLM(dummy_Y, dummy_X, family=family,
                                  freq_weights=dummy_weight)
 
     def fit(self, X, Y, sample_weight=None):
@@ -387,7 +387,7 @@ class GLM(BaseModel):
             -------
             dispersion: float
             """
-            if isinstance(self.family.family, (Binomial, Poisson)):
+            if isinstance(self.family, (Binomial, Poisson)):
                 return 1.
             return self._model.scale
 
@@ -412,7 +412,7 @@ class GLM(BaseModel):
         X, sample_weight = self._transform_X_sample_weight(X, sample_weight=sample_weight)
         self._raise_error_if_sample_weight_sum_zero(sample_weight)
         Y = self._transform_Y(Y)
-        self._model = sm.GLM(Y, X, family=self.family.family, freq_weights=sample_weight)
+        self._model = sm.GLM(Y, X, family=self.family, freq_weights=sample_weight)
         # dof in weighted regression does not make sense, hard code it to the total weights
         self._model.df_resid = np.sum(sample_weight)
         if self.reg_method is None or self.alpha < EPS:
@@ -469,11 +469,15 @@ class GLM(BaseModel):
         assert X.shape[0] == Y.shape[0]
         Y = self._transform_Y(Y)
         mu = self.predict(X)
-        if isinstance(self.family.family, Binomial):
-            endog, _ = self.family.family.initialize(Y, 1.0)
+        if isinstance(self.family, Binomial):
+            endog, _ = self.family.initialize(Y, 1.0)
         else:
             endog = Y
-        return self.family.loglike_per_sample(endog, mu, scale=self.dispersion)
+        if self.dispersion > EPS:
+            return self.family.loglike_obs(endog, mu, scale=self.dispersion)
+        log_p = np.zeros(endog.shape[0])
+        log_p[~np.isclose(endog, mu)] = - np.Infinity
+        return log_p
 
     def to_json(self, path):
         """

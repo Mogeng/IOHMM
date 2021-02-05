@@ -9,12 +9,6 @@ import statsmodels.api as sm
 from statsmodels.genmod.tests.results.results_glm import InvGauss
 
 
-from IOHMM import (PoissonWrapper,
-                   GammaWrapper,
-                   GaussianWrapper,
-                   BinomialWrapper,
-                   InverseGaussianWrapper,
-                   NegativeBinomialWrapper)
 from IOHMM import GLM
 
 
@@ -29,7 +23,7 @@ class PoissonTests(unittest.TestCase):
 
     def test_glm_IRLS(self):
         self.model = GLM(
-            solver='IRLS', family=PoissonWrapper(),
+            solver='IRLS', family=sm.families.Poisson(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -100,7 +94,7 @@ class PoissonTests(unittest.TestCase):
     def test_glm_regularized(self):
         # there is a bug in sklearn with weights, it can only use list right now
         self.model = GLM(
-            solver='auto', family=PoissonWrapper(),
+            solver='auto', family=sm.families.Poisson(),
             fit_intercept=True, est_stderr=True,
             reg_method='elastic_net',  alpha=0.01, l1_ratio=0.5,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -138,7 +132,7 @@ class PoissonTests(unittest.TestCase):
 
     def test_glm_sample_weight_all_half(self):
         self.model = GLM(
-            solver='IRLS', family=PoissonWrapper(),
+            solver='IRLS', family=sm.families.Poisson(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -183,7 +177,7 @@ class PoissonTests(unittest.TestCase):
 
     def test_glm_sample_weight_all_zero(self):
         self.model = GLM(
-            solver='IRLS', family=PoissonWrapper(),
+            solver='IRLS', family=sm.families.Poisson(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -191,7 +185,7 @@ class PoissonTests(unittest.TestCase):
 
     def test_GLM_sample_weight_half_zero_half_one(self):
         self.model = GLM(
-            solver='IRLS', family=PoissonWrapper(),
+            solver='IRLS', family=sm.families.Poisson(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -200,7 +194,7 @@ class PoissonTests(unittest.TestCase):
                        sample_weight=np.array([1] * len_half +
                                               [0] * (self.X.shape[0] - len_half)))
         self.model_half = GLM(
-            solver='IRLS', family=PoissonWrapper(),
+            solver='IRLS', family=sm.families.Poisson(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -225,7 +219,7 @@ class PoissonTests(unittest.TestCase):
     # corner cases
     def test_glm_one_data_point(self):
         self.model = GLM(
-            solver='IRLS', family=PoissonWrapper(),
+            solver='IRLS', family=sm.families.Poisson(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -245,7 +239,7 @@ class PoissonTests(unittest.TestCase):
 
     def test_ols_multicolinearty(self):
         self.model_col = GLM(
-            solver='irls', family=PoissonWrapper(),
+            solver='irls', family=sm.families.Poisson(),
             fit_intercept=False, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -253,7 +247,7 @@ class PoissonTests(unittest.TestCase):
         self.model_col.fit(X,
                            self.Y, sample_weight=0.5)
         self.model = GLM(
-            solver='IRLS', family=PoissonWrapper(),
+            solver='IRLS', family=sm.families.Poisson(),
             fit_intercept=False, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -288,7 +282,7 @@ class GammaTests(unittest.TestCase):
 
     def test_glm_IRLS(self):
         self.model = GLM(
-            solver='IRLS', family=GammaWrapper(),
+            solver='IRLS', family=sm.families.Gamma(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -369,7 +363,7 @@ class GammaTests(unittest.TestCase):
 
     def test_glm_sample_weight_all_half(self):
         self.model = GLM(
-            solver='IRLS', family=GammaWrapper(),
+            solver='IRLS', family=sm.families.Gamma(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -418,7 +412,7 @@ class GammaTests(unittest.TestCase):
 
     def test_glm_sample_weight_all_zero(self):
         self.model = GLM(
-            solver='IRLS', family=GammaWrapper(),
+            solver='IRLS', family=sm.families.Gamma(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -426,7 +420,7 @@ class GammaTests(unittest.TestCase):
 
     def test_GLM_sample_weight_half_zero_half_one(self):
         self.model = GLM(
-            solver='IRLS', family=GammaWrapper(),
+            solver='IRLS', family=sm.families.Gamma(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -435,7 +429,7 @@ class GammaTests(unittest.TestCase):
                        sample_weight=np.array([1] * len_half +
                                               [0] * (self.X.shape[0] - len_half)))
         self.model_half = GLM(
-            solver='IRLS', family=GammaWrapper(),
+            solver='IRLS', family=sm.families.Gamma(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -463,14 +457,14 @@ class GammaTests(unittest.TestCase):
 
     def test_ols_multicolinearty(self):
         self.model_col = GLM(
-            solver='irls', family=GammaWrapper(),
+            solver='irls', family=sm.families.Gamma(),
             fit_intercept=False, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
         X = np.hstack([self.X[:, 0:1], self.X[:, 0:1]])
         self.model_col.fit(X, self.Y, sample_weight=0.5)
         self.model = GLM(
-            solver='IRLS', family=GammaWrapper(),
+            solver='IRLS', family=sm.families.Gamma(),
             fit_intercept=False, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -502,7 +496,7 @@ class GaussianTests(unittest.TestCase):
 
     def test_glm_IRLS(self):
         self.model = GLM(
-            solver='IRLS', family=GaussianWrapper(),
+            solver='IRLS', family=sm.families.Gaussian(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -582,7 +576,7 @@ class GaussianTests(unittest.TestCase):
 
     def test_glm_sample_weight_all_half(self):
         self.model = GLM(
-            solver='IRLS', family=GaussianWrapper(),
+            solver='IRLS', family=sm.families.Gaussian(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -631,7 +625,7 @@ class GaussianTests(unittest.TestCase):
 
     def test_glm_sample_weight_all_zero(self):
         self.model = GLM(
-            solver='IRLS', family=GaussianWrapper(),
+            solver='IRLS', family=sm.families.Gaussian(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -639,7 +633,7 @@ class GaussianTests(unittest.TestCase):
 
     def test_GLM_sample_weight_half_zero_half_one(self):
         self.model = GLM(
-            solver='IRLS', family=GaussianWrapper(),
+            solver='IRLS', family=sm.families.Gaussian(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -648,7 +642,7 @@ class GaussianTests(unittest.TestCase):
                        sample_weight=np.array([1] * len_half +
                                               [0] * (self.X.shape[0] - len_half)))
         self.model_half = GLM(
-            solver='IRLS', family=GaussianWrapper(),
+            solver='IRLS', family=sm.families.Gaussian(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -677,14 +671,14 @@ class GaussianTests(unittest.TestCase):
 
     def test_ols_multicolinearty(self):
         self.model_col = GLM(
-            solver='irls', family=GaussianWrapper(),
+            solver='irls', family=sm.families.Gaussian(),
             fit_intercept=False, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
         X = np.hstack([self.X[:, 0:1], self.X[:, 0:1]])
         self.model_col.fit(X, self.Y, sample_weight=0.5)
         self.model = GLM(
-            solver='IRLS', family=GaussianWrapper(),
+            solver='IRLS', family=sm.families.Gaussian(),
             fit_intercept=False, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -716,7 +710,7 @@ class BinomialTests(unittest.TestCase):
 
     def test_glm_IRLS(self):
         self.model = GLM(
-            solver='IRLS', family=BinomialWrapper(),
+            solver='IRLS', family=sm.families.Binomial(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -851,7 +845,7 @@ class BinomialTests(unittest.TestCase):
 
     def test_glm_sample_weight_all_half(self):
         self.model = GLM(
-            solver='IRLS', family=BinomialWrapper(),
+            solver='IRLS', family=sm.families.Binomial(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -962,7 +956,7 @@ class BinomialTests(unittest.TestCase):
 
     def test_glm_sample_weight_all_zero(self):
         self.model = GLM(
-            solver='IRLS', family=BinomialWrapper(),
+            solver='IRLS', family=sm.families.Binomial(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -970,7 +964,7 @@ class BinomialTests(unittest.TestCase):
 
     def test_GLM_sample_weight_half_zero_half_one(self):
         self.model = GLM(
-            solver='IRLS', family=BinomialWrapper(),
+            solver='IRLS', family=sm.families.Binomial(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -979,7 +973,7 @@ class BinomialTests(unittest.TestCase):
                        sample_weight=np.array([1] * len_half +
                                               [0] * (self.X.shape[0] - len_half)))
         self.model_half = GLM(
-            solver='IRLS', family=BinomialWrapper(),
+            solver='IRLS', family=sm.families.Binomial(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -1005,7 +999,7 @@ class BinomialTests(unittest.TestCase):
 
     def test_glm_one_data_point(self):
         self.model = GLM(
-            solver='IRLS', family=BinomialWrapper(),
+            solver='IRLS', family=sm.families.Binomial(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -1026,14 +1020,14 @@ class BinomialTests(unittest.TestCase):
 
     def test_ols_multicolinearty(self):
         self.model_col = GLM(
-            solver='irls', family=BinomialWrapper(),
+            solver='irls', family=sm.families.Binomial(),
             fit_intercept=False, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
         X = np.hstack([self.X[:, 0:1], self.X[:, 0:1]])
         self.model_col.fit(X, self.Y, sample_weight=0.5)
         self.model = GLM(
-            solver='IRLS', family=BinomialWrapper(),
+            solver='IRLS', family=sm.families.Binomial(),
             fit_intercept=False, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -1069,7 +1063,7 @@ class InverseGaussianTests(unittest.TestCase):
 
     def test_glm_IRLS(self):
         self.model = GLM(
-            solver='IRLS', family=InverseGaussianWrapper(),
+            solver='IRLS', family=sm.families.InverseGaussian(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -1134,7 +1128,7 @@ class InverseGaussianTests(unittest.TestCase):
 
     def test_glm_sample_weight_all_half(self):
         self.model = GLM(
-            solver='IRLS', family=InverseGaussianWrapper(),
+            solver='IRLS', family=sm.families.InverseGaussian(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -1174,7 +1168,7 @@ class InverseGaussianTests(unittest.TestCase):
 
     def test_glm_sample_weight_all_zero(self):
         self.model = GLM(
-            solver='IRLS', family=InverseGaussianWrapper(),
+            solver='IRLS', family=sm.families.InverseGaussian(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -1182,7 +1176,7 @@ class InverseGaussianTests(unittest.TestCase):
 
     def test_GLM_sample_weight_half_zero_half_one(self):
         self.model = GLM(
-            solver='IRLS', family=InverseGaussianWrapper(),
+            solver='IRLS', family=sm.families.InverseGaussian(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -1191,7 +1185,7 @@ class InverseGaussianTests(unittest.TestCase):
                        sample_weight=np.array([1] * len_half +
                                               [0] * (self.X.shape[0] - len_half)))
         self.model_half = GLM(
-            solver='IRLS', family=InverseGaussianWrapper(),
+            solver='IRLS', family=sm.families.InverseGaussian(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -1220,14 +1214,14 @@ class InverseGaussianTests(unittest.TestCase):
 
     def test_ols_multicolinearty(self):
         self.model_col = GLM(
-            solver='irls', family=InverseGaussianWrapper(),
+            solver='irls', family=sm.families.InverseGaussian(),
             fit_intercept=False, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
         X = np.hstack([self.X[:, 0:1], self.X[:, 0:1]])
         self.model_col.fit(X, self.Y, sample_weight=0.5)
         self.model = GLM(
-            solver='IRLS', family=InverseGaussianWrapper(),
+            solver='IRLS', family=sm.families.InverseGaussian(),
             fit_intercept=False, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -1263,7 +1257,7 @@ class NegativeBinomialTests(unittest.TestCase):
 
     def test_glm_IRLS(self):
         self.model = GLM(
-            solver='IRLS', family=NegativeBinomialWrapper(),
+            solver='IRLS', family=sm.families.NegativeBinomial(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -1338,7 +1332,7 @@ class NegativeBinomialTests(unittest.TestCase):
 
     def test_glm_sample_weight_all_half(self):
         self.model = GLM(
-            solver='IRLS', family=NegativeBinomialWrapper(),
+            solver='IRLS', family=sm.families.NegativeBinomial(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -1384,7 +1378,7 @@ class NegativeBinomialTests(unittest.TestCase):
 
     def test_glm_sample_weight_all_zero(self):
         self.model = GLM(
-            solver='IRLS', family=NegativeBinomialWrapper(),
+            solver='IRLS', family=sm.families.NegativeBinomial(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -1392,7 +1386,7 @@ class NegativeBinomialTests(unittest.TestCase):
 
     def test_GLM_sample_weight_half_zero_half_one(self):
         self.model = GLM(
-            solver='IRLS', family=NegativeBinomialWrapper(),
+            solver='IRLS', family=sm.families.NegativeBinomial(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -1401,7 +1395,7 @@ class NegativeBinomialTests(unittest.TestCase):
                        sample_weight=np.array([1] * len_half +
                                               [0] * (self.X.shape[0] - len_half)))
         self.model_half = GLM(
-            solver='IRLS', family=NegativeBinomialWrapper(),
+            solver='IRLS', family=sm.families.NegativeBinomial(),
             fit_intercept=True, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  max_iter=100,
             coef=None, stderr=None,  dispersion=None)
@@ -1430,14 +1424,14 @@ class NegativeBinomialTests(unittest.TestCase):
 
     def test_ols_multicolinearty(self):
         self.model_col = GLM(
-            solver='irls', family=NegativeBinomialWrapper(),
+            solver='irls', family=sm.families.NegativeBinomial(),
             fit_intercept=False, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
         X = np.hstack([self.X[:, 0:1], self.X[:, 0:1]])
         self.model_col.fit(X, self.Y, sample_weight=0.5)
         self.model = GLM(
-            solver='IRLS', family=NegativeBinomialWrapper(),
+            solver='IRLS', family=sm.families.NegativeBinomial(),
             fit_intercept=False, est_stderr=True,
             reg_method=None,  alpha=0, l1_ratio=0,  tol=1e-4, max_iter=100,
             coef=None, stderr=None,  dispersion=None)
