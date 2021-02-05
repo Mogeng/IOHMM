@@ -27,10 +27,10 @@ class SemiSupervisedIOHMMTests(unittest.TestCase):
         for i in range(int(old_div(len(corr), 2))):
             if corr[i] == 'cor':
                 states[i] = np.array([0, 1, 0, 0])
-                cls.data_speed.set_value(i, 'rt', 1)
+                cls.data_speed.at[i, 'rt'] = 1
             else:
                 states[i] = np.array([1, 0, 0, 0])
-                cls.data_speed.set_value(i, 'rt', 0)
+                cls.data_speed.at[i, 'rt'] = 0
         return states
 
     def setUp(self):

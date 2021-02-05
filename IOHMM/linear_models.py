@@ -53,7 +53,7 @@ import os
 import numpy as np
 from scipy.stats import multivariate_normal
 from sklearn import linear_model
-from sklearn.linear_model.base import _rescale_data
+from sklearn.linear_model._base import _rescale_data
 from sklearn.preprocessing import label_binarize
 import statsmodels.api as sm
 from statsmodels.genmod.families import Poisson, Binomial
@@ -314,8 +314,8 @@ class BaseModel(object):
             reg_method=json_dict['properties']['reg_method'],
             alpha=json_dict['properties']['alpha'],
             l1_ratio=json_dict['properties']['l1_ratio'],
-            coef=np.load(json_dict['properties']['coef']['path'], allow_pickle = True),
-            stderr=np.load(json_dict['properties']['stderr']['path'], allow_pickle = True))
+            coef=np.load(json_dict['properties']['coef']['path'], allow_pickle=True),
+            stderr=np.load(json_dict['properties']['stderr']['path'], allow_pickle=True))
 
 
 class GLM(BaseModel):
@@ -355,7 +355,7 @@ class GLM(BaseModel):
         coef: the coefficients if loading from trained model
         stderr: the std.err of coefficients if loading from trained model
 
-        family: https://www.statsmodels.org/stable/generated/statsmodels.genmod.families.family.Family.html
+        family: statsmodels.genmod.families.family.Family
         dispersion: dispersion/scale of the GLM
         -------
         """
@@ -538,7 +538,8 @@ class GLM(BaseModel):
                 reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,
                 coef=coef, stderr=stderr, tol=tol, max_iter=max_iter,
                 family=pickle.load(f),
-                dispersion=np.load(json_dict['properties']['dispersion']['path'], allow_pickle = True))
+                dispersion=np.load(json_dict['properties']['dispersion']['path'],
+                                   allow_pickle=True))
 
 
 class OLS(BaseModel):
@@ -791,7 +792,8 @@ class OLS(BaseModel):
                    reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,
                    coef=coef, stderr=stderr,
                    tol=tol, max_iter=max_iter,
-                   dispersion=np.load(json_dict['properties']['dispersion']['path'], allow_pickle = True),
+                   dispersion=np.load(json_dict['properties']['dispersion']['path'],
+                                      allow_pickle=True),
                    n_targets=json_dict['properties']['n_targets'])
 
 
@@ -1210,7 +1212,7 @@ class DiscreteMNL(BaseMNL):
             reg_method=reg_method, alpha=alpha, l1_ratio=l1_ratio,
             coef=coef, stderr=stderr,
             tol=tol, max_iter=max_iter,
-            classes=np.load(json_dict['properties']['classes']['path'], allow_pickle = True))
+            classes=np.load(json_dict['properties']['classes']['path'], allow_pickle=True))
 
 
 class CrossEntropyMNL(BaseMNL):
