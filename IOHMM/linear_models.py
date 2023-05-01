@@ -621,7 +621,7 @@ class OLS(BaseModel):
             -------
             dispersion matrix: array of shape (n_targets, n_targets), 2d
             """
-            mu, wendog = _rescale_data(self.predict(X), Y, sample_weight)
+            mu, wendog, _ = _rescale_data(self.predict(X), Y, sample_weight)
             wresid = mu - wendog
             return np.dot(wresid.T, wresid) / np.sum(sample_weight)
 
@@ -645,7 +645,7 @@ class OLS(BaseModel):
             http://msekce.karlin.mff.cuni.cz/~vorisek/Seminar/0910l/jonas.pdf
             """
             if self.reg_method is None or self.alpha < EPS:
-                wexog, wendog = _rescale_data(X_train, Y, sample_weight)
+                wexog, wendog, _ = _rescale_data(X_train, Y, sample_weight)
                 stderr = np.zeros((self.n_targets, X_train.shape[1]))
                 try:
                     XWX_inverse_XW_sqrt = np.linalg.inv(np.dot(wexog.T, wexog)).dot(wexog.T)
