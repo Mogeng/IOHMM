@@ -392,7 +392,7 @@ class BaseIOHMM(object):
 
     def train(self):
         """
-        The ieratioin of EM step,
+        The iteration of EM step,
         Notes:
         ----------
         For SupervisedIOHMM, max_EM_iter is 1, thus will only go through one iteration of EM step,
