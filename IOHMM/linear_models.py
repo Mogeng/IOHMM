@@ -145,6 +145,8 @@ class BaseModel(object):
         -------
         X : design matrix of shape (n_samples, n_features + 1) if fit intercept
         """
+        if X.shape[0] == 0:
+            return X
         if self.fit_intercept:
             X = add_constant(X, has_constant='add')
         return X
@@ -972,6 +974,8 @@ class BaseMNL(BaseModel):
         """
         self._raise_error_if_model_not_trained()
         X = self._transform_X(X)
+        if X.shape[0] == 0:
+            return np.empty((0, self.n_classes))
         if self.n_classes == 1:
             return np.zeros((X.shape[0], 1))
 
